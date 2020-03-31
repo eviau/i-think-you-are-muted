@@ -91,6 +91,12 @@ var areaLabel;
 var labelColor;
 var rolledSprite;
 
+//shows up at the beginning, centered, overlapped to room in lurk mode
+var logo;
+var logoCounter;
+var LOGO_STAY = -1; //in millisecs, -1 forever in lurk mode
+var walkIcon;
+
 var menuBg, arrowButton;
 var menuGroup;
 
@@ -101,6 +107,8 @@ var longTextAlign;
 var longTextLink = "";
 var LONG_TEXT_BOX_W = 220;
 var LONG_TEXT_PADDING = 4;
+
+var errorMessage = "";
 
 var TEXT_H = 8;
 var TEXT_PADDING = 3;
@@ -186,6 +194,13 @@ function preload() {
     menuBg = loadImage(ASSETS_FOLDER + "menu_white.png");
     arrowButton = loadImage(ASSETS_FOLDER + "arrowButton.png");
 
+    var logoSheet = loadSpriteSheet(ASSETS_FOLDER + "logo.png", 66, 82, 4);
+    logo = loadAnimation(logoSheet);
+    logo.frameDelay = 10;
+
+    var walkIconSheet = loadSpriteSheet(ASSETS_FOLDER + "walkIcon.png", 6, 8, 4);
+    walkIcon = loadAnimation(walkIconSheet);
+    walkIcon.frameDelay = 8;
 
     //MONOSPACED FONT
     //thank you https://datagoblin.itch.io/monogram
@@ -364,6 +379,7 @@ function newGame() {
     nextCommand = null;
     areaLabel = "";
     rolledSprite = null;
+    logoCounter = 0;
 
     hideUser();
     hideAvatar();
@@ -386,9 +402,8 @@ function newGame() {
 
 
     //paint background
-    roomColor = color("#FFF1E8");
+    roomColor = color(UI_BG);
     background(roomColor);
-
 
     //initialize players as object
     players = {};
@@ -405,6 +420,7 @@ function newGame() {
     //the previous player list to avoid ghosts
     //as long as the clients are open they should not lose their avatar and position even if the server is down
     socket.on('connect', function () {
+
 
         try {
             players = {};
@@ -447,8 +463,13 @@ function newGame() {
                 p.destinationX = p.x;
                 p.destinationY = p.y;
 
-                //if it's me
+                //if it's me///////////
                 if (socket.id == p.id) {
+
+                    //the location appears in the url
+                    if (ROOM_LINK && ROOMS[p.room] != null)
+                        window.history.replaceState(null, null, "?room=" + p.room);
+
                     players = {};
                     bubbles = [];
 
@@ -657,6 +678,36 @@ function newGame() {
         }
     );
 
+    //displays a message upon connection refusal (server full etc)
+    //this is an end state and requires a refresh or a join
+    socket.on('errorMessage',
+        function (msg) {
+            if (socket.id) {
+                console.log("Message from server: " + msg);
+                screen = "error";
+                errorMessage = msg;
+                hideChat();
+                hideUser();
+                hideAvatar();
+                hideJoin();
+            }
+        }
+    );
+
+    //when a server message arrives
+    socket.on('godMessage',
+        function (msg) {
+            if (socket.id) {
+
+                longText = msg;
+                longTextLines = -1;
+                longTextAlign = "center";
+                longTextLink = "";
+            }
+        }
+    );
+
+
     //when a server message arrives
     socket.on('nameValidation',
         function (code) {
@@ -684,6 +735,17 @@ function newGame() {
         }
     );
 
+    //when the client realizes it's being disconnected
+    socket.on('disconnect', function () {
+        //console.log("OH NO");
+    });
+
+    //server forces refresh (on disconnect)
+    socket.on('refresh', function () {
+        location.reload();
+    });
+
+
     socket.open();
 
 }
@@ -705,8 +767,17 @@ function draw() {
 
         text("Choose your avatar", 64 * ASSET_SCALE, 18 * ASSET_SCALE);
 
-        drawSprites();
+        menuGroup.draw();
 
+    }
+    if (screen == "error") {
+        //end state, displays a message in full screen
+        textFont(font, FONT_SIZE);
+        textAlign(CENTER, CENTER);
+        fill(UI_BG);
+        rect(0, 0, WIDTH, HEIGHT);
+        fill(LABEL_NEUTRAL_COLOR);
+        text(errorMessage, floor(WIDTH / 8), floor(HEIGHT / 8), WIDTH - floor(WIDTH / 4), HEIGHT - floor(HEIGHT / 4));
     }
     if (screen == "game") {
         //draw a background
@@ -875,8 +946,10 @@ function draw() {
         //
         drawSprites();
 
-        //GUI
 
+        //GUI
+        if (nickName != "" && rolledSprite == null && areaLabel == "")
+            animation(walkIcon, floor(mouseX + 6), floor(mouseY - 6));
 
         //draw all the speech bubbles lines first only if the players have not moves since speaking
         for (var i = 0; i < bubbles.length; i++) {
@@ -949,42 +1022,63 @@ function draw() {
         }
 
         //long text above everything
-        if (longText != "") {
+        if (longText != "" && nickName != "") {
 
             noStroke();
             textFont(font, FONT_SIZE);
             textLeading(TEXT_LEADING);
 
-            if (longTextAlign == "left")
-                textAlign(LEFT, BASELINE);
-            else
-                textAlign(CENTER, BASELINE);
+            //dramatic text on black
+            if (longTextLines == -1) {
 
-            //measuring text height requires a PhD so we
-            //require the user to do trial and error and counting the lines
-            //and use some magic numbers
+                if (longTextAlign == "left")
+                    textAlign(LEFT, CENTER);
+                else
+                    textAlign(CENTER, CENTER);
 
-            var tw = LONG_TEXT_BOX_W - LONG_TEXT_PADDING * 2;
-            var th = longTextLines * TEXT_LEADING;
+                fill(UI_BG);
+                rect(0, 0, width, height);
+                fill(LABEL_NEUTRAL_COLOR);
+                text(longText, LONG_TEXT_PADDING, LONG_TEXT_PADDING, width - LONG_TEXT_PADDING * 2, height - LONG_TEXT_PADDING * 2);
+            }
+            else {
 
-            if (longTextAlign == "center" && longTextLines == 1)
-                tw = textWidth(longText + " ");
+                if (longTextAlign == "left")
+                    textAlign(LEFT, BASELINE);
+                else
+                    textAlign(CENTER, BASELINE);
 
-            var rw = tw + LONG_TEXT_PADDING * 2;
-            var rh = th + LONG_TEXT_PADDING * 2;
+                //measuring text height requires a PhD so we
+                //require the user to do trial and error and counting the lines
+                //and use some magic numbers
 
-            fill(UI_BG);
+                var tw = LONG_TEXT_BOX_W - LONG_TEXT_PADDING * 2;
+                var th = longTextLines * TEXT_LEADING;
 
-            rect(floor(width / 2 - rw / 2), floor(height / 2 - rh / 2), floor(rw), floor(rh));
-            //rect(20, 20, 100, 50);
 
-            fill(LABEL_NEUTRAL_COLOR);
-            text(longText, floor(width / 2 - tw / 2 + LONG_TEXT_PADDING - 1), floor(height / 2 - th / 2) + TEXT_LEADING - 3, floor(tw));
+                //single line centered text
+                if (longTextAlign == "center" && longTextLines == 1)
+                    tw = textWidth(longText + " ");
 
+                var rw = tw + LONG_TEXT_PADDING * 2;
+                var rh = th + LONG_TEXT_PADDING * 2;
+
+                fill(UI_BG);
+
+                rect(floor(width / 2 - rw / 2), floor(height / 2 - rh / 2), floor(rw), floor(rh));
+                //rect(20, 20, 100, 50);
+
+                fill(LABEL_NEUTRAL_COLOR);
+                text(longText, floor(width / 2 - tw / 2 + LONG_TEXT_PADDING - 1), floor(height / 2 - th / 2) + TEXT_LEADING - 3, floor(tw));
+            }
+        }//end long text
+
+        if (nickName == "" && (logoCounter < LOGO_STAY || LOGO_STAY == -1)) {
+            logoCounter += deltaTime;
+            animation(logo, floor(width / 2), floor(height / 2));
         }
 
-
-    }
+    }//end game
 
     //
 
@@ -1213,6 +1307,9 @@ function touchEnded() {
 //rollover state
 function mouseMoved() {
 
+    if (walkIcon != null)
+        walkIcon.visible = false;
+
     if (areas != null && me != null) {
         var c = areas.get(mouseX, mouseY);
         areaLabel = "";
@@ -1220,8 +1317,12 @@ function mouseMoved() {
         if (alpha(c) != 0 && me.room != null) {
             //walk icon?
             if (c[0] == 255 && c[1] == 255 && c[2] == 255) {
+                if (walkIcon != null)
+                    walkIcon.visible = true;
+
             }
             else {
+
 
                 var command = getCommand(c, me.room);
                 if (command != null)
@@ -1237,7 +1338,9 @@ function mouseMoved() {
 
 //when I click to move
 function canvasClicked() {
-
+    if (screen == "error") {
+        location.reload();
+    }
     if (nickName != "") {
         //exit text
         if (longText != "") {
@@ -1361,19 +1464,12 @@ function executeCommand(c) {
                     sx = c.enterPoint[0] * ASSET_SCALE;
                     sy = c.enterPoint[1] * ASSET_SCALE;
                     socket.emit('changeRoom', { from: me.room, to: c.room, x: sx, y: sy });
-                    //the location appears in the url
-                    if (ROOM_LINK)
-                        window.history.replaceState(null, null, "?room=" + c.room);
-
                 }
                 else if (ROOMS[c.room].spawn != null) {
                     spawnZone = ROOMS[c.room].spawn;
                     sx = round(random(spawnZone[0] * ASSET_SCALE, spawnZone[2] * ASSET_SCALE));
                     sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
                     socket.emit('changeRoom', { from: me.room, to: c.room, x: sx, y: sy });
-                    //the location appears in the url
-                    if (ROOM_LINK)
-                        window.history.replaceState(null, null, "?room=" + c.room);
                 }
                 else {
                     console.log("ERROR: No spawn point or area set for " + c.room);

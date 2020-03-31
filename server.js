@@ -14,6 +14,15 @@ var Filter = require('bad-words');
 //minimum time between talk messages
 //enforced by server
 var ANTI_SPAM = 1000;
+//time before disconnecting (forgot the tab open?)
+var ACTIVITY_TIMEOUT = 10 * 60 * 1000;
+//should be the same as index maxlength="16"
+var MAX_NAME_LENGTH = 16;
+
+//cap the overall players 
+var MAX_PLAYERS = -1;
+//refuse people when a room is full 
+var MAX_PLAYERS_PER_ROOM = 200;
 
 /*
 A very rudimentary admin system. 
@@ -35,6 +44,10 @@ var gameState = {
     players: {}
 }
 
+//a collection of banned IPs
+//not permanent, it lasts until the server restarts
+var banned = [];
+
 //when a client connects serve the static files in the public directory ie public/index.html
 app.use(express.static('public'));
 
@@ -45,13 +58,17 @@ io.on('connection', function (socket) {
 
     //wait for the player to send their name and info, then broadcast them
     socket.on('join', function (playerInfo) {
+
+        //console.log("Number of sockets " + Object.keys(io.sockets.connected).length);
+
         try {
-      
-          //oh look at this beautiful socket.io to get an goddamn ip address
+
+            //if running locally it's not gonna work
+            var IP = "";
+            //oh look at this beautiful socket.io to get an goddamn ip address
             if (socket.handshake.headers != null)
                 if (socket.handshake.headers["x-forwarded-for"] != null) {
-                    const address = socket.handshake.headers["x-forwarded-for"].split(",")[0];
-                    console.log(address);
+                    IP = socket.handshake.headers["x-forwarded-for"].split(",")[0];
                 }
 
             if (playerInfo.nickName == "")
@@ -59,11 +76,42 @@ io.on('connection', function (socket) {
             else
                 console.log("New user joined the game: " + playerInfo.nickName + " avatar# " + playerInfo.avatar + " color# " + playerInfo.color + " " + socket.id);
 
+            var roomPlayers = 1;
+            var myRoom = io.sockets.adapter.rooms[playerInfo.room];
+            if (myRoom != undefined) {
+                roomPlayers = myRoom.length + 1;
+                console.log("There are now " + roomPlayers + " users in " + playerInfo.room);
+            }
+
+            var serverPlayers = Object.keys(io.sockets.connected).length + 1;
+
+            //prevent banned IPs from joining
+            if (IP != "") {
+                const index = banned.indexOf(IP);
+                //found
+                if (index > -1) {
+                    socket.emit("errorMessage", "You have been banned");
+                    socket.disconnect();
+                }
+
+            }
             //prevent a hacked client from duplicating players
-            if (gameState.players[socket.id] != null) {
+            else if (gameState.players[socket.id] != null) {
                 console.log("ATTENTION: there is already a player associated to the socket " + socket.id);
             }
+            else if ((serverPlayers > MAX_PLAYERS && MAX_PLAYERS != -1) || (roomPlayers > MAX_PLAYERS_PER_ROOM && MAX_PLAYERS_PER_ROOM != -1)) {
+                //limit the number of players
+                console.log("ATTENTION: " + playerInfo.room + " reached maximum capacity");
+                socket.emit("errorMessage", "The server is full, please try again later. Click to refresh.");
+                socket.disconnect();
+            }
             else {
+
+                //if client hacked truncate
+                if (playerInfo.nickName.length > MAX_NAME_LENGTH)
+                    playerInfo.nickName = playerInfo.nickName.substring(0, MAX_NAME_LENGTH);
+
+
                 //the first validation was to give the player feedback, this one is for real
                 var val = 1;
 
@@ -93,7 +141,9 @@ io.on('connection', function (socket) {
                     //is it admin?
                     gameState.players[socket.id].admin = (val == 2) ? true : false;
                     gameState.players[socket.id].spam = 0;
+                    gameState.players[socket.id].lastActivity = new Date().getTime();
                     gameState.players[socket.id].muted = false;
+                    gameState.players[socket.id].IP = IP;
 
                     //send the user to the default room
                     socket.join(playerInfo.room, function () {
@@ -192,6 +242,8 @@ io.on('connection', function (socket) {
 
                 //update the last message time
                 gameState.players[socket.id].lastMessage = time;
+                gameState.players[socket.id].lastActivity = time;
+
             }
         } catch (e) {
             console.log("Error on talk, object malformed from" + socket.id + "?");
@@ -204,20 +256,37 @@ io.on('connection', function (socket) {
     //when I receive a move sent it to everybody
     socket.on('changeRoom', function (obj) {
         try {
-            console.log("Player " + socket.id + " moved from " + obj.from + " to " + obj.to);
-            socket.leave(obj.from);
-            socket.join(obj.to);
 
-            //broadcast the change to everybody in the current room
-            //from the client perspective leaving the room is the same as disconnecting
-            io.to(obj.from).emit('playerLeft', { id: socket.id });
+            var roomPlayers = 1;
+            var myRoom = io.sockets.adapter.rooms[obj.to];
+            if (myRoom != undefined) {
+                roomPlayers = myRoom.length + 1;
+            }
 
-            //same for joining, sending everybody in the room the player state
-            var playerObject = gameState.players[socket.id];
-            playerObject.room = obj.to;
-            playerObject.x = playerObject.destinationX = obj.x;
-            playerObject.y = playerObject.destinationY = obj.y;
-            io.to(obj.to).emit('playerJoined', playerObject);
+            if (roomPlayers > MAX_PLAYERS_PER_ROOM && MAX_PLAYERS_PER_ROOM != -1) {
+                //limit the number of players
+                console.log("ATTENTION: " + obj.to + " reached maximum capacity");
+                //keep the player in game, send a message
+                socket.emit('godMessage', "The room looks full");
+            }
+            else {
+                console.log("Player " + socket.id + " moved from " + obj.from + " to " + obj.to);
+
+
+                socket.leave(obj.from);
+                socket.join(obj.to);
+
+                //broadcast the change to everybody in the current room
+                //from the client perspective leaving the room is the same as disconnecting
+                io.to(obj.from).emit('playerLeft', { id: socket.id });
+
+                //same for joining, sending everybody in the room the player state
+                var playerObject = gameState.players[socket.id];
+                playerObject.room = obj.to;
+                playerObject.x = playerObject.destinationX = obj.x;
+                playerObject.y = playerObject.destinationY = obj.y;
+                io.to(obj.to).emit('playerJoined', playerObject);
+            }
         } catch (e) {
             console.log("Error on join, object malformed from" + socket.id + "?");
             console.error(e);
@@ -228,6 +297,8 @@ io.on('connection', function (socket) {
     //when I receive a move sent it to everybody
     socket.on('move', function (obj) {
         try {
+            gameState.players[socket.id].lastActivity = new Date().getTime();
+
             //broadcast the movement to everybody
             io.to(obj.room).emit('playerMoved', { id: socket.id, x: obj.x, y: obj.y, destinationX: obj.destinationX, destinationY: obj.destinationY });
 
@@ -258,6 +329,7 @@ function validateName(nn) {
     var admin = false;
     var duplicate = false;
     var reserved = false;
+
 
     //check if the nickname is a name + password combo
     var combo = nn.split("|");
@@ -295,6 +367,7 @@ function validateName(nn) {
         console.log("There is already a player named " + nn);
     }
 
+
     if (duplicate || reserved)
         return 0
     else if (admin)
@@ -314,6 +387,7 @@ function adminCommand(adminSocket, str) {
             case "kick":
                 var s = socketByName(cmd[1]);
                 if (s != null) {
+                    //shadow disconnect
                     s.disconnect();
                 }
                 else {
@@ -333,6 +407,7 @@ function adminCommand(adminSocket, str) {
                 }
                 break;
 
+            //trigger a direct popup
             case "popup":
 
                 var s = socketByName(cmd[1]);
@@ -348,6 +423,38 @@ function adminCommand(adminSocket, str) {
                     adminSocket.emit("popup", "I can't find a user named " + cmd[1]);
                 }
                 break;
+
+            //send fullscreen message to everybody
+            case "god":
+                cmd.shift();
+                var msg = cmd.join(" ");
+                io.sockets.emit('godMessage', msg);
+                break;
+
+            //add to the list of banned IPs
+            case "ban":
+                var IP = IPByName(cmd[1]);
+                var s = socketByName(cmd[1]);
+                if (IP != "") {
+                    banned.push(IP);
+                }
+
+                if (s != null) {
+                    s.emit("errorMessage", "You have been banned");
+                    s.disconnect();
+                }
+                else {
+                    //popup to admin
+                    adminSocket.emit("popup", "I can't find a user named " + cmd[1]);
+                }
+
+                break;
+
+            case "unban":
+                //releases the ban
+                banned = [];
+                break;
+
         }
     }
     catch (e) {
@@ -380,12 +487,42 @@ function idByName(nick) {
     return i;
 }
 
+function IPByName(nick) {
+    var IP = "";
+    for (var id in gameState.players) {
+        if (gameState.players.hasOwnProperty(id)) {
+            if (gameState.players[id].nickName.toUpperCase() == nick.toUpperCase()) {
+                ip = gameState.players[id].IP;
+            }
+        }
+    }
+    return IP;
+}
+
+
 //listen to the port 3000
 http.listen(port, function () {
     console.log('listening on *:3000');
 });
 
-//in my gallery people can swear but not use slurs, override bad-words list, and add my own
+//check the last activity and disconnect players that have been idle for too long
+setInterval(function () {
+    var time = new Date().getTime();
+
+    for (var id in gameState.players) {
+        if (gameState.players.hasOwnProperty(id)) {
+
+            if (gameState.players[id].nickName != "" && (time - gameState.players[id].lastActivity) > ACTIVITY_TIMEOUT) {
+                console.log(id + " has been idle for more than " + ACTIVITY_TIMEOUT + " disconnecting");
+                io.sockets.sockets[id].emit("refresh");
+                io.sockets.sockets[id].disconnect();
+            }
+        }
+    }
+}, 1000);
+
+
+//in my gallery people can swear but not use slurs, override bad-words list, and add my own, pardon for my french
 let myBadWords = ['chink', 'cunt', 'cunts', "fag", "fagging", "faggitt", "faggot", "faggs", "fagot", "fagots", "fags", "jap", "homo", "nigger", "niggers", "n1gger", "nigg3r"];
 var filter = new Filter({ emptyList: true });
 filter.addWords(...myBadWords);
