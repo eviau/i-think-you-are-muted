@@ -46,6 +46,10 @@ io.on('connection', function (socket) {
     //wait for the player to send their name and info, then broadcast them
     socket.on('join', function (playerInfo) {
         try {
+      
+          const address = socket.handshake.headers["x-forwarded-for"].split(",")[0];
+          console.log(address);
+
             if (playerInfo.nickName == "")
                 console.log("New user joined the server in lurking mode " + socket.id);
             else
