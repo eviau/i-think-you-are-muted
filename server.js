@@ -72,7 +72,7 @@ io.on('connection', function (socket) {
                 }
 
             if (playerInfo.nickName == "")
-                console.log("New user joined the server in lurking mode " + socket.id);
+                console.log("New user joined the server in lurking mode " + socket.id + " " + IP);
             else
                 console.log("New user joined the game: " + playerInfo.nickName + " avatar# " + playerInfo.avatar + " color# " + playerInfo.color + " " + socket.id);
 
@@ -84,24 +84,28 @@ io.on('connection', function (socket) {
             }
 
             var serverPlayers = Object.keys(io.sockets.connected).length + 1;
-  
-          
+
+            var isBanned = false;
+
             //prevent banned IPs from joining
             if (IP != "") {
-              console.log("is "+IP+" banned?");
                 var index = banned.indexOf(IP);
                 //found
                 if (index > -1) {
-                    console.log(socket.id + " attempting to log from banned IP "+IP);
-                    //socket.emit("errorMessage", "You have been banned");
-                    //socket.disconnect();
+                    console.log("ATTENTION: banned " + IP + " is trying to log in again");
+                    isBanned = true;
+                    socket.emit("errorMessage", "You have been banned");
+                    socket.disconnect();
                 }
 
             }
+
+
+            if (isBanned) {
+
+            }
             //prevent a hacked client from duplicating players
-            //else 
-              
-              if (gameState.players[socket.id] != null) {
+            else if (gameState.players[socket.id] != null) {
                 console.log("ATTENTION: there is already a player associated to the socket " + socket.id);
             }
             else if ((serverPlayers > MAX_PLAYERS && MAX_PLAYERS != -1) || (roomPlayers > MAX_PLAYERS_PER_ROOM && MAX_PLAYERS_PER_ROOM != -1)) {
@@ -387,7 +391,7 @@ function adminCommand(adminSocket, str) {
     try {
         //remove /
         str = str.substr(1);
-        cmd = str.split(" ");
+        var cmd = str.split(" ");
         switch (cmd[0]) {
             case "kick":
                 var s = socketByName(cmd[1]);
@@ -497,7 +501,7 @@ function IPByName(nick) {
     for (var id in gameState.players) {
         if (gameState.players.hasOwnProperty(id)) {
             if (gameState.players[id].nickName.toUpperCase() == nick.toUpperCase()) {
-                ip = gameState.players[id].IP;
+                IP = gameState.players[id].IP;
             }
         }
     }
