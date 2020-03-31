@@ -84,7 +84,7 @@ io.on('connection', function (socket) {
             }
 
             var serverPlayers = Object.keys(io.sockets.connected).length + 1;
-
+  /*
             //prevent banned IPs from joining
             if (IP != "") {
                 const index = banned.indexOf(IP);
@@ -96,7 +96,9 @@ io.on('connection', function (socket) {
 
             }
             //prevent a hacked client from duplicating players
-            else if (gameState.players[socket.id] != null) {
+            else */
+              
+              if (gameState.players[socket.id] != null) {
                 console.log("ATTENTION: there is already a player associated to the socket " + socket.id);
             }
             else if ((serverPlayers > MAX_PLAYERS && MAX_PLAYERS != -1) || (roomPlayers > MAX_PLAYERS_PER_ROOM && MAX_PLAYERS_PER_ROOM != -1)) {
