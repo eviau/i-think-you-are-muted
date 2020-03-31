@@ -3,7 +3,13 @@
 /// <reference path="TSDef/p5.global-mode.d.ts" />
 
 //for testing purposes I can skip the login phase
-var QUICK_LOGIN = true;
+var QUICK_LOGIN = false;
+//expose the room locations on the url and make them them shareable
+//you can access the world from any point. False ignores
+var ROOM_LINK = true;
+//join the world immediately but as invisible user
+//to have a preview of what it is
+var LURK_MODE = true;
 
 //native canvas resolution
 var WIDTH = 256;
@@ -13,14 +19,15 @@ var ASSET_SCALE = 2; //the backgrounds are scaled 2x
 var AVATAR_W = 10;
 var AVATAR_H = 18;
 
-//create a socket connection
+//the socket connection
 var socket;
 
-//linear speed
+//character linear speed, pixels per milliseconds
 var SPEED = 50;
+
 //how long does it stay per character
-var MIN_BUBBLE_TIME = 1;
-var BUBBLE_TIME = 0.3;
+var MIN_BUBBLE_TIME = 2;
+var BUBBLE_TIME = 0.4;
 var BUBBLE_MARGIN = 3;
 
 //this object keeps track of all the current players, coordinates and color
@@ -29,10 +36,12 @@ var players;
 var me;
 var canvas;
 
-var nickName;
+var nickName = "";
 
 //lobby, avatar selection or game?
 var screen;
+
+var PAGE_COLOR = "#000000";
 
 //sprite reference color for palette swap
 //hair, skin, shirt, pants
@@ -107,7 +116,7 @@ var FONT_SIZE = 16; //to avoid blur
 var font;
 var ASSETS_FOLDER = "assets/";
 
-var defaultRoom = "likelike";
+var defaultRoom = "likelikeOutside";
 
 //prevent from spamming messages, enforced by the server too 
 var ANTI_SPAM = 1000;
@@ -120,6 +129,8 @@ var avatarPreview;
 
 //setup is called when all the assets have been loaded
 function preload() {
+
+    document.body.style.backgroundColor = PAGE_COLOR;
 
     for (var i = 0; i < 37; i++)
         avatarSpriteSheets[i] = loadImage(ASSETS_FOLDER + "character" + i + ".png");
@@ -183,31 +194,19 @@ function preload() {
 }
 
 function setup() {
-    /*
-    //assign random name and avatar and get to the game
-    if (QUICK_LOGIN) {
-        nickName = "user" + floor(random(0, 1000));
-        hideLobby();
-        nameOk();
-        avatarSelection();
-        newGame();
+
+    if (ROOM_LINK) {
+        //url parameters can pass the room so a room can be linked
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoom = urlParams.get('room')
+
+        if (urlRoom != null) {
+            if (ROOMS[urlRoom] != null)
+                defaultRoom = urlRoom;
+        }
     }
-    else {
-        screen = "lobby";
-    }*/
 
-    canvasSetup();
-    screen = "lobby";
-    showUser();
 
-}
-
-function windowResized() {
-    scaleCanvas();
-    print("CANVAS RESIZE");
-}
-
-function canvasSetup() {
     //create a canvas
     canvas = createCanvas(WIDTH, HEIGHT);
     //accept only the clicks on the canvas (not the ones on the UI)
@@ -220,7 +219,35 @@ function canvasSetup() {
 
     //since my avatars are pixelated and scaled I kill the antialiasing on canvas
     noSmooth();
+
+    if (LURK_MODE) {
+        //nickname blank means invisible
+        nickName = "";
+        currentColor = floor(random(0, AVATAR_PALETTES.length));
+        currentAvatar = floor(random(0, avatarSpriteSheets.length));
+        newGame();
+    }
+    else if (QUICK_LOGIN) {
+        //assign random name and avatar and get to the game
+        nickName = "user" + floor(random(0, 1000));
+        currentColor = floor(random(0, AVATAR_PALETTES.length));
+        currentAvatar = floor(random(0, avatarSpriteSheets.length));
+
+        newGame();
+    }
+    else {
+        screen = "lobby";
+        showUser();
+    }
+
+
 }
+
+function windowResized() {
+    scaleCanvas();
+    print("CANVAS RESIZE");
+}
+
 
 function scaleCanvas() {
     //landscape scale to height
@@ -256,24 +283,24 @@ function avatarSelection() {
     var animation = loadAnimation(ss);
 
     //the position is the bottom left
-    previousBody = createSprite(8 * ASSET_SCALE + 14, 47 * ASSET_SCALE + 14);
+    previousBody = createSprite(8 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
     previousBody.addAnimation("default", animation);
     previousBody.animation.stop();
     previousBody.mirrorX(-1);
     menuGroup.add(previousBody);
 
-    nextBody = createSprite(24 * ASSET_SCALE + 14, 47 * ASSET_SCALE + 14);
+    nextBody = createSprite(24 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
     nextBody.addAnimation("default", animation);
     nextBody.animation.stop();
     menuGroup.add(nextBody);
 
-    previousColor = createSprite(90 * ASSET_SCALE + 14, 47 * ASSET_SCALE + 14);
+    previousColor = createSprite(90 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
     previousColor.addAnimation("default", animation);
     previousColor.animation.stop();
     previousColor.mirrorX(-1);
     menuGroup.add(previousColor);
 
-    nextColor = createSprite(106 * ASSET_SCALE + 14, 47 * ASSET_SCALE + 14);
+    nextColor = createSprite(106 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
     nextColor.addAnimation("default", animation);
     nextColor.animation.stop();
     menuGroup.add(nextColor);
@@ -337,17 +364,26 @@ function newGame() {
     nextCommand = null;
     areaLabel = "";
     rolledSprite = null;
+
     hideUser();
     hideAvatar();
-    showChat();
 
+    if (menuGroup != null)
+        menuGroup.removeSprites();
 
-    /*
-    //This is to visualize framerate independent movements
-    var fps = random(30, 60);
-    frameRate(fps);
-    console.log("Simulating a framerate of " + fps);
-    */
+    if (nickName == "") {
+        showJoin();
+    }
+    else {
+        showChat();
+    }
+
+    //if new game is called from lurker mode disconnect the previous socket to avoid ghosts
+    if (socket != null) {
+        console.log("Lurker joins " + socket.id);
+        socket.disconnect();
+    }
+
 
     //paint background
     roomColor = color("#FFF1E8");
@@ -362,50 +398,75 @@ function newGame() {
         autoConnect: false
     });
 
+    //all functions are in a try/catch to prevent a hacked client from sending garbage that crashes other clients 
+
     //if the client detects a server connection it may be because the server restarted 
     //in that case the clients reconnect automatically and are assigned new ids so I have to clear
     //the previous player list to avoid ghosts
+    //as long as the clients are open they should not lose their avatar and position even if the server is down
     socket.on('connect', function () {
-        players = {};
-        deleteAllSprites();
-        bubbles = [];
 
-        spawnZone = ROOMS[defaultRoom].spawn;
+        try {
+            players = {};
 
-        //randomize position
-        var sx = round(random(spawnZone[0] * ASSET_SCALE, spawnZone[2] * ASSET_SCALE));
-        var sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
+            //ayay: connection lost while setting up character, just force a refresh
+            if (screen == "avatar" || screen == "lobby")
+                location.reload();
+
+            bubbles = [];
 
 
-        //send the server my name and avatar
-        socket.emit('join', { nickName: nickName, color: currentColor, avatar: currentAvatar, room: defaultRoom, x: sx, y: sy });
+            //first time
+            if (me == null) {
+                spawnZone = ROOMS[defaultRoom].spawn;
+
+                //randomize position if it's the first time
+                var sx = round(random(spawnZone[0] * ASSET_SCALE, spawnZone[2] * ASSET_SCALE));
+                var sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
+
+                //send the server my name and avatar
+                socket.emit('join', { nickName: nickName, color: currentColor, avatar: currentAvatar, room: defaultRoom, x: sx, y: sy });
+            }
+            else {
+                socket.emit('join', { nickName: nickName, color: currentColor, avatar: currentAvatar, room: me.room, x: me.x, y: me.y });
+            }
+        } catch (e) {
+            console.log("Error on connect");
+            console.error(e);
+        }
+
     });
 
     //when somebody joins the game create a new player
     socket.on('playerJoined',
         function (p) {
+            try {
+                console.log("new player in the room " + p.room + " " + p.id + " " + p.x + " " + p.y + " color " + p.color);
 
-            console.log("new player in the room " + p.room + " " + p.id + " " + p.x + " " + p.y + " color " + p.color);
+                //stop moving
+                p.destinationX = p.x;
+                p.destinationY = p.y;
 
-            //stop moving
-            p.destinationX = p.x;
-            p.destinationY = p.y;
+                //if it's me
+                if (socket.id == p.id) {
+                    players = {};
+                    bubbles = [];
 
-            //if it's me
-            if (socket.id == p.id) {
-                players = {};
-                bubbles = [];
+                    deleteAllSprites();
 
-                deleteAllSprites();
+                    players[p.id] = me = new Player(p);
+                    me.sprite.mouseActive = false;
+                    me.sprite.onMouseOver = function () { };
+                    me.sprite.onMouseOut = function () { };
 
-                players[p.id] = me = new Player(p);
-                me.sprite.mouseActive = false;
-                me.sprite.onMouseOver = function () { };
-                me.sprite.onMouseOut = function () { };
+                    //if a page background is specified change it
+                    if (ROOMS[p.room].pageBg != null)
+                        document.body.style.backgroundColor = ROOMS[p.room].pageBg;
+                    else
+                        document.body.style.backgroundColor = PAGE_COLOR;
 
+                    //load level background
 
-                //load level background
-                try {
                     //can be static or spreadsheet
                     var bgg = ROOMS[p.room].bgGraphics;
                     //find frame number
@@ -475,42 +536,50 @@ function newGame() {
                     //sprites: [
                     //    { file: "pink-cabinet.png", position: [24, 89], label: "A time traveling game", command: { cmd: "link", arg: "https://cephalopodunk.itch.io/the-last-human-touch", label: "A time traveling game", point: [33, 95] } }
                     //]
+
                 }
-                catch (e) {
-                    console.log("Error room " + p.room + " has no bacground image");
+                else {
+                    //
+                    players[p.id] = new Player(p);
+
+                    //console.log("I shall introduce myself to " + p.id);
+
+                    //If I'm not the new player send an introduction to the new player
+                    socket.emit('intro', p.id, {
+                        id: socket.id,
+                        nickName: me.nickName,
+                        color: me.color,
+                        avatar: me.avatar,
+                        room: me.room,
+                        x: me.x,
+                        y: me.y,
+                        destinationX: me.destinationX,
+                        destinationY: me.destinationY
+                    });
                 }
+
+                console.log("There are now " + Object.keys(players).length + " players in this room");
+
             }
-            else {
-                //
-                players[p.id] = new Player(p);
-
-                //console.log("I shall introduce myself to " + p.id);
-
-                //If I'm not the new player send an introduction to the new player
-                socket.emit('intro', p.id, {
-                    id: socket.id,
-                    nickName: me.nickName,
-                    color: me.color,
-                    avatar: me.avatar,
-                    room: me.room,
-                    x: me.x,
-                    y: me.y,
-                    destinationX: me.destinationX,
-                    destinationY: me.destinationY
-                });
+            catch (e) {
+                console.log("Error on playerJoined");
+                console.error(e);
             }
-
-            console.log("There are now " + Object.keys(players).length + " players in this room");
-
         }
     );
 
     //each existing player sends me an object with their parameters
     socket.on('onIntro',
         function (p) {
-            //console.log("Hello newcomer I'm " + p.nickName + " " + p.id);
-            players[p.id] = new Player(p);
-            console.log("There are now " + Object.keys(players).length + " players in this room");
+            try {
+
+                //console.log("Hello newcomer I'm " + p.nickName + " " + p.id);
+                players[p.id] = new Player(p);
+                console.log("There are now " + Object.keys(players).length + " players in this room");
+            } catch (e) {
+                console.log("Error on onIntro");
+                console.error(e);
+            }
         }
     );
 
@@ -518,14 +587,19 @@ function newGame() {
     //when somebody clicks to move, update the destination (not the position)
     socket.on('playerMoved',
         function (p) {
-            console.log(p.id + " moves to: " + p.destinationX + " " + p.destinationY);
+            try {
+                console.log(p.id + " moves to: " + p.destinationX + " " + p.destinationY);
 
-            //make sure the player exists
-            if (players.hasOwnProperty(p.id)) {
-                //players[p.id].x = p.x;
-                //players[p.id].y = p.y;
-                players[p.id].destinationX = p.destinationX;
-                players[p.id].destinationY = p.destinationY;
+                //make sure the player exists
+                if (players.hasOwnProperty(p.id)) {
+                    //players[p.id].x = p.x;
+                    //players[p.id].y = p.y;
+                    players[p.id].destinationX = p.destinationX;
+                    players[p.id].destinationY = p.destinationY;
+                }
+            } catch (e) {
+                console.log("Error on playerMoved");
+                console.error(e);
             }
         });
 
@@ -533,13 +607,19 @@ function newGame() {
     //when somebody disconnects/leaves the room
     socket.on('playerLeft',
         function (p) {
-            console.log("Player " + p.id + " left");
+            try {
+                console.log("Player " + p.id + " left");
 
-            if (players[p.id] != null)
-                removeSprite(players[p.id].sprite);
+                if (players[p.id] != null)
+                    removeSprite(players[p.id].sprite);
 
-            delete players[p.id];
-            console.log("There are now " + Object.keys(players).length + " players in this room");
+                delete players[p.id];
+                console.log("There are now " + Object.keys(players).length + " players in this room");
+
+            } catch (e) {
+                console.log("Error on playerLeft");
+                console.error(e);
+            }
         }
     );
 
@@ -548,20 +628,24 @@ function newGame() {
     //when somebody talks
     socket.on('playerTalked',
         function (p) {
-            console.log("new message from " + p.id + ": " + p.message + " color " + p.color);
-            var playerId = p.id;
-            //make sure the player exists in the client
-            if (players.hasOwnProperty(p.id)) {
+            try {
+                console.log("new message from " + p.id + ": " + p.message + " color " + p.color);
+                var playerId = p.id;
+                //make sure the player exists in the client
+                if (players.hasOwnProperty(p.id)) {
 
-                //minimum y of speech bubbles depends on room, typically higher half
-                var offY = ROOMS[me.room].bubblesY * ASSET_SCALE;
-                var newBubble = new Bubble(p.id, p.message, p.color, p.x, p.y, offY);
+                    //minimum y of speech bubbles depends on room, typically higher half
+                    var offY = ROOMS[me.room].bubblesY * ASSET_SCALE;
+                    var newBubble = new Bubble(p.id, p.message, p.color, p.x, p.y, offY);
 
-                pushBubbles(newBubble);
-                bubbles.push(newBubble);
+                    pushBubbles(newBubble);
+                    bubbles.push(newBubble);
+                }
+            } catch (e) {
+                console.log("Error on playerTalked");
+                console.error(e);
             }
         }
-
     );
 
     //when a server message arrives
@@ -571,7 +655,33 @@ function newGame() {
                 console.log("Message from server: " + msg);
             }
         }
+    );
 
+    //when a server message arrives
+    socket.on('nameValidation',
+        function (code) {
+            if (socket.id) {
+                if (code == 0) {
+                    console.log("Username already taken");
+                    var e = document.getElementById("lobby-error");
+
+                    if (e != null)
+                        e.innerHTML = "Username already taken";
+                }
+                else
+                    nameValidated(); //continue
+            }
+        }
+    );
+
+
+    //when a server message arrives
+    socket.on('popup',
+        function (msg) {
+            if (socket.id) {
+                alert(msg);
+            }
+        }
     );
 
     socket.open();
@@ -587,10 +697,15 @@ function draw() {
     if (screen == "avatar") {
         image(menuBg, 0, 0, WIDTH, HEIGHT);
 
-        //background(240, 240, 240);
-        drawSprites();
-        //menuGroup.drawSprites();
+        textFont(font, FONT_SIZE * 2);
+        textAlign(CENTER, BASELINE);
+        fill(0);
+        text("Body", 24 * ASSET_SCALE, 44 * ASSET_SCALE);
+        text("Color", 105 * ASSET_SCALE, 44 * ASSET_SCALE);
 
+        text("Choose your avatar", 64 * ASSET_SCALE, 18 * ASSET_SCALE);
+
+        drawSprites();
 
     }
     if (screen == "game") {
@@ -800,6 +915,10 @@ function draw() {
         var label = areaLabel;
         var labelColor = LABEL_NEUTRAL_COLOR;
 
+        //if lurking disable arealabel
+        if (nickName == "")
+            label = "";
+
         //player and sprites label override areas
         if (rolledSprite != null && rolledSprite != me.sprite) {
             if (rolledSprite.label != null) {
@@ -879,6 +998,7 @@ function Player(p) {
     this.color = p.color;
     this.avatar = p.avatar;
 
+
     this.tint = color("#FFFFFF");
 
     if (ROOMS[p.room].tint != null) {
@@ -916,6 +1036,10 @@ function Player(p) {
     this.dir = 1;
     this.destinationX = p.destinationX;
     this.destinationY = p.destinationY;
+
+    //lurkmode
+    if (this.nickName == "")
+        this.sprite.visible = false;
 
     this.stopAnimation = function () {
         this.sprite.animation.changeFrame(0);
@@ -1064,8 +1188,31 @@ function isObstacle(x, y, room, a) {
     return obs;
 }
 
+//on mobile there is no rollover so allow a drag to count as mouse move
+//the two functions SHOULD be mutually exclusive
+//touchDown prevents duplicate event firings
+var touchDown = false;
+
+function mouseDragged() {
+    mouseMoved();
+}
+
+function touchMoved() {
+    mouseMoved();
+    touchDown = true;
+}
+
+function touchEnded() {
+
+    if (touchDown) {
+        touchDown = false;
+        canvasClicked();
+    }
+}
+
 //rollover state
 function mouseMoved() {
+
     if (areas != null && me != null) {
         var c = areas.get(mouseX, mouseY);
         areaLabel = "";
@@ -1087,65 +1234,67 @@ function mouseMoved() {
     }
 }
 
+
 //when I click to move
 function canvasClicked() {
 
-    //exit text
-    if (longText != "") {
+    if (nickName != "") {
+        //exit text
+        if (longText != "") {
 
-        if (longTextLink != "")
-            window.open(longTextLink, '_blank');
+            if (longTextLink != "")
+                window.open(longTextLink, '_blank');
 
-        longText = "";
-        longTextLink = "";
+            longText = "";
+            longTextLink = "";
 
-    }
-    else if (me != null) {
-        //clicked on person
-        if (rolledSprite != null) {
+        }
+        else if (me != null) {
+            //clicked on person
+            if (rolledSprite != null) {
 
-            //click on player sprite attempt to move next to them
-            if (rolledSprite.id != null) {
-                nextCommand = null;
-                var t = players[rolledSprite.id];
-                if (t != null) {
-                    var d = (me.x < t.x) ? -(AVATAR_W * 2) : (AVATAR_W * 2);
-                    socket.emit('move', { x: me.x, y: me.y, room: me.room, destinationX: t.x + d, destinationY: t.y });
+                //click on player sprite attempt to move next to them
+                if (rolledSprite.id != null) {
+                    nextCommand = null;
+                    var t = players[rolledSprite.id];
+                    if (t != null) {
+                        var d = (me.x < t.x) ? -(AVATAR_W * 2) : (AVATAR_W * 2);
+                        socket.emit('move', { x: me.x, y: me.y, room: me.room, destinationX: t.x + d, destinationY: t.y });
+                    }
                 }
             }
+            //check the area info
+            else if (areas != null && me.room != null) {
+
+                var c = areas.get(mouseX, mouseY);
+
+                //if transparent or semitransparent do nothing
+                if (alpha(c) != 255) {
+                    //cancel command
+                    nextCommand = null;
+                    //stop if moving
+                    if (me.x != me.destinationX && me.y != me.destinationY)
+                        socket.emit('move', { x: me.x, y: me.y, room: me.room, destinationX: me.x, destinationY: me.y });
+                }
+                else if (c[0] == 255 && c[1] == 255 && c[2] == 255) {
+                    //if white, generic walk stop command
+                    nextCommand = null;
+                    console.log("walk to " + mouseX + ", " + mouseY);
+                    socket.emit('move', { x: me.x, y: me.y, room: me.room, destinationX: mouseX, destinationY: mouseY });
+                }
+                else {
+                    //if something else check the commands
+                    var command = getCommand(c, me.room);
+
+                    //walk and executed when you arrive or stop
+                    if (command != null)
+                        moveToCommand(command);
+                }
+            }
+
+
         }
-        //check the area info
-        else if (areas != null && me.room != null) {
-
-            var c = areas.get(mouseX, mouseY);
-
-            //if transparent or semitransparent do nothing
-            if (alpha(c) != 255) {
-                //cancel command
-                nextCommand = null;
-                //stop if moving
-                if (me.x != me.destinationX && me.y != me.destinationY)
-                    socket.emit('move', { x: me.x, y: me.y, room: me.room, destinationX: me.x, destinationY: me.y });
-            }
-            else if (c[0] == 255 && c[1] == 255 && c[2] == 255) {
-                //if white, generic walk stop command
-                nextCommand = null;
-                console.log("walk to " + mouseX + ", " + mouseY);
-                socket.emit('move', { x: me.x, y: me.y, room: me.room, destinationX: mouseX, destinationY: mouseY });
-            }
-            else {
-                //if something else check the commands
-                var command = getCommand(c, me.room);
-
-                //walk and executed when you arrive or stop
-                if (command != null)
-                    moveToCommand(command);
-            }
-        }
-
-
     }
-
 
 }
 
@@ -1207,23 +1356,29 @@ function executeCommand(c) {
     switch (c.cmd) {
         case "enter":
             var sx, sy;
-            if (c.enterPoint != null) {
-                sx = c.enterPoint[0] * ASSET_SCALE;
-                sy = c.enterPoint[1] * ASSET_SCALE;
-                socket.emit('changeRoom', { from: me.room, to: c.room, x: sx, y: sy });
+            if (ROOMS[c.room] != null) {
+                if (c.enterPoint != null) {
+                    sx = c.enterPoint[0] * ASSET_SCALE;
+                    sy = c.enterPoint[1] * ASSET_SCALE;
+                    socket.emit('changeRoom', { from: me.room, to: c.room, x: sx, y: sy });
+                    //the location appears in the url
+                    if (ROOM_LINK)
+                        window.history.replaceState(null, null, "?room=" + c.room);
 
+                }
+                else if (ROOMS[c.room].spawn != null) {
+                    spawnZone = ROOMS[c.room].spawn;
+                    sx = round(random(spawnZone[0] * ASSET_SCALE, spawnZone[2] * ASSET_SCALE));
+                    sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
+                    socket.emit('changeRoom', { from: me.room, to: c.room, x: sx, y: sy });
+                    //the location appears in the url
+                    if (ROOM_LINK)
+                        window.history.replaceState(null, null, "?room=" + c.room);
+                }
+                else {
+                    console.log("ERROR: No spawn point or area set for " + c.room);
+                }
             }
-            else if (ROOMS[c.room].spawn != null) {
-                spawnZone = ROOMS[c.room].spawn;
-                sx = round(random(spawnZone[0] * ASSET_SCALE, spawnZone[2] * ASSET_SCALE));
-                sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
-                socket.emit('changeRoom', { from: me.room, to: c.room, x: sx, y: sy });
-
-            }
-            else {
-                console.log("ERROR: No spawn point or area set for " + c.room);
-            }
-
             break;
 
 
@@ -1273,7 +1428,7 @@ function keyPressed() {
 //when I hits send
 function talk(msg) {
 
-    if (msg.replace(/\s/g, '') != "")
+    if (msg.replace(/\s/g, '') != "" && nickName != "")
         socket.emit('talk', { message: msg, color: me.color, room: me.room, x: me.x, y: me.y });
 }
 
@@ -1283,6 +1438,7 @@ function getTalkInput() {
     var time = new Date().getTime();
 
     if (time - lastMessage > ANTI_SPAM) {
+
         // Selecting the input element and get its value 
         var inputVal = document.getElementById("chatField").value;
         //sending it to the talk function in sketch
@@ -1301,17 +1457,22 @@ function nameOk() {
 
     if (v != "") {
         nickName = v;
-        console.log(">welcome " + nickName);
-        hideUser();
-        showAvatar();
-        //the div container
-
-        //the canvas background
-        avatarSelection();
+        socket.emit('sendName', v);
         //prevent page from refreshing on enter (default form behavior)
         return false;
     }
 
+}
+
+function nameValidated() {
+
+    console.log(">welcome " + nickName);
+    hideUser();
+    showAvatar();
+    //the div container
+
+    //the canvas background
+    avatarSelection();
 }
 
 //draws a random avatar body in the center of the canvas
@@ -1335,6 +1496,7 @@ function previewAvatar() {
     avatarPreview.addAnimation("default", aAnim);
     //avatarPreview.debug = true;
     avatarPreview.animation.stop();
+    menuGroup.add(avatarPreview);
 
 }
 
@@ -1386,6 +1548,27 @@ function tintGraphics(img, colorString) {
     return img;
 }
 
+
+//join from lurk mode
+function joinGame() {
+
+    deleteAllSprites();
+    hideJoin();
+
+    if (QUICK_LOGIN) {
+        //assign random name and avatar and get to the game
+        nickName = "user" + floor(random(0, 1000));
+        currentColor = floor(random(0, AVATAR_PALETTES.length));
+        currentAvatar = floor(random(0, avatarSpriteSheets.length));
+        newGame();
+    }
+    else {
+        screen = "lobby";
+        showUser();
+    }
+
+}
+
 function bodyOk() {
 
     newGame();
@@ -1435,13 +1618,14 @@ function hideAvatar() {
         e.style.display = "none";
 }
 
-function showLobby() {
-    document.getElementById("lobby-container").style.display = "block";
+function showJoin() {
+    document.getElementById("join-form").style.display = "block";
 }
 
-function hideLobby() {
-    document.getElementById("lobby-container").style.display = "none";
+function hideJoin() {
+    document.getElementById("join-form").style.display = "none";
 }
+
 
 //enable the chat input when it's time
 function showChat() {
@@ -1461,3 +1645,10 @@ function outOfCanvas() {
     areaLabel = "";
     rolledSprite = null;
 }
+
+//disable scroll on phone
+function preventBehavior(e) {
+    e.preventDefault();
+};
+
+document.addEventListener("touchmove", preventBehavior, { passive: false });

@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>P5 Chat</title>
+    <title>LIKELIKE Online</title>
     <!-- This is a standard p5.js index, NOTE the p5.dom.min.js -->
     <script src='https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js'></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.10.2/p5.js"></script>
@@ -28,6 +28,7 @@
                     <input id="lobby-field" class="lobby-field" placeholder="username" maxlength="12" autocomplete="off"
                         autocorrect="off" autocapitalize="off" spellcheck="false" />
                 </form>
+                <div id="lobby-error" class="lobby-error-message"></div>
 
 
             </div>
@@ -38,9 +39,9 @@
     </div>
     <div id="interface">
         <!-- talk form is below canvas getTalkInput is what happens when return is pressed-->
-        <form id="join-form" action="" onsubmit="return nameOk()" style="display: none;">
+        <form id="join-form" action="" onsubmit="return joinGame()" style="display: none;">
             <!-- call the function below on button press-->
-            <button class="join-button" type="button" onclick="nameOk();">JOIN</button>
+            <button class="join-button" type="button" onclick="joinGame();">JOIN</button>
         </form>
 
         <form id="user-form" action="" onsubmit="return nameOk()" style="display: none;">

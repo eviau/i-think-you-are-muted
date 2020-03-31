@@ -3,13 +3,17 @@
 	src: url("assets/monogram_extended.ttf");
 }
 
-html,
+html {
+    margin: 0px;
+	padding: 0px;
+}
+
 body {
 	font-family: monogram;
 	font-size: 32px;
 	margin: 0px;
 	padding: 0px;
-	background-color: #7e2553;
+	background-color: #000;
 	font-smooth: never;
 	-webkit-font-smoothing: none;
 }
@@ -34,7 +38,8 @@ canvas {
 	image-rendering: -moz-crisp-edges;
 	image-rendering: -webkit-crisp-edges;
 	image-rendering: pixelated;
-	image-rendering: crisp-edges;
+    image-rendering: crisp-edges;
+    touch-action: manipulation;
 }
 
 #interface {
@@ -89,6 +94,11 @@ canvas {
     margin-bottom: 32px;
 }
 
+.lobby-error-message {
+	font-size: 32px;
+	color: #ff004d;
+}
+
 .lobby-field {
 	border: 4px solid #757575;
 	text-align: center;
@@ -97,7 +107,7 @@ canvas {
 }
 
 .talk-button,
-.lobby-button,
+.join-button,
 .user-button,
 .avatar-button {
 	font-family: monogram;
@@ -109,7 +119,7 @@ canvas {
 	color: white;
     background: #ff004d;
     outline: none;
-    border-bottom: 4px solid black;
+    border-bottom: 4px solid#424242;
     margin-left: auto;
     margin-right:auto;
     padding-top: 4px;
@@ -132,26 +142,35 @@ canvas {
 
 .talk-button:active,
 .user-button:active,
-.avatar-button:active {
+.avatar-button:active,
+.join-button:active {
     background: #ff77a8;
     border-bottom: none;
     border-right: none;
     margin-top: 4px;
-
 }
 
 .talk-button:hover,
 .user-button:hover,
-.avatar-button:hover
- {
+.avatar-button:hover,
+.join-button:hover {
 	background: #ff77a8;
 }
 
+/*Animate join to make sure people don't miss it*/
+@keyframes glowing {
+    0% { background-color: #ff004d; }
+    50% { background-color: #ff77a8;  }
+    100% { background-color: #ff004d;  }
+}
+
+.join-button {
+    animation: glowing 1300ms infinite;
+}
 
 
 /*LOBBY OVERLAYS*/
-#lobby-container
- {
+#lobby-container {
 	display: block;
     height: 100%;
 }

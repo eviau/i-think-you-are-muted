@@ -8,6 +8,7 @@ var ROOMS = {
         avatarScale: 2,
         area: "likelike-areas.png",
         tint: "#fa84af",
+        pageBg: "#6a2545",
         bubblesY: 50,
         spawn: [84, 92, 121, 99],
         areaColors: {
@@ -34,6 +35,7 @@ var ROOMS = {
         frames: 2,
         frameDelay: 30,
         avatarScale: 2,
+        pageBg: "#ab5236",
         area: "likelikeOutside-areas.png",
         tint: "#fdeac8",
         bubblesY: 44,
@@ -50,6 +52,7 @@ var ROOMS = {
         avatarScale: 2,
         area: "likelike-backyard-areas.png",
         tint: "#fdbe4e",
+        pageBg: "#413830",
         bubblesY: 20,
         spawn: [38, 63, 108, 83],
         areaColors: {

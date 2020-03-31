@@ -1,5 +1,6 @@
 dependencies:
   bad-words: 3.0.3
+  dotenv: 8.2.0
   express: 4.17.1
   socket.io: 2.3.0
 packages:
@@ -163,6 +164,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-l4hXRCxEdJ5CBmE+N5RiBYJqvYA=
+  /dotenv/8.2.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-8sJ78ElpbDJBHNeBzUbUVLsqKdccaa/BXF1uPTw3GrvQTBgrQrtObr2mUrE38vzYd8cEv+m/JBfDLioYcfXoaw==
   /ee-first/1.1.1:
     dev: false
     resolution:
@@ -634,5 +641,6 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   bad-words: ^3.0.3
+  dotenv: ^8.2.0
   express: ^4.17.1
   socket.io: ^2.3.0
