@@ -84,19 +84,22 @@ io.on('connection', function (socket) {
             }
 
             var serverPlayers = Object.keys(io.sockets.connected).length + 1;
-  /*
+  
+          
             //prevent banned IPs from joining
             if (IP != "") {
-                const index = banned.indexOf(IP);
+              console.log("is "+IP+" banned?");
+                var index = banned.indexOf(IP);
                 //found
                 if (index > -1) {
-                    socket.emit("errorMessage", "You have been banned");
-                    socket.disconnect();
+                    console.log(socket.id + " attempting to log from banned IP "+IP);
+                    //socket.emit("errorMessage", "You have been banned");
+                    //socket.disconnect();
                 }
 
             }
             //prevent a hacked client from duplicating players
-            else */
+            //else 
               
               if (gameState.players[socket.id] != null) {
                 console.log("ATTENTION: there is already a player associated to the socket " + socket.id);
