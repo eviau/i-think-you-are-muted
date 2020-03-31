@@ -47,8 +47,12 @@ io.on('connection', function (socket) {
     socket.on('join', function (playerInfo) {
         try {
       
-          const address = socket.handshake.headers["x-forwarded-for"].split(",")[0];
-          console.log(address);
+          //oh look at this beautiful socket.io to get an goddamn ip address
+            if (socket.handshake.headers != null)
+                if (socket.handshake.headers["x-forwarded-for"] != null) {
+                    const address = socket.handshake.headers["x-forwarded-for"].split(",")[0];
+                    console.log(address);
+                }
 
             if (playerInfo.nickName == "")
                 console.log("New user joined the server in lurking mode " + socket.id);
