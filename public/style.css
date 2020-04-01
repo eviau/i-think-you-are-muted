@@ -58,9 +58,9 @@ canvas {
 }
 
 #talk-form {
-    
 	width: 100%;
 	margin: auto;
+	text-align: center;
 }
 
 
@@ -81,8 +81,9 @@ canvas {
 
 .talk-field {
 	display: inline-block;
-	width: 80%;
-    float: left;
+	width: 70%;
+	/*float: left;*/
+    margin-right:4px;
     margin-top:4px;
 }
 
@@ -102,7 +103,7 @@ canvas {
 .lobby-field {
 	border: 4px solid #757575;
 	text-align: center;
-	width: 300px;
+	width: 400px;
 	outline: none;
 }
 
@@ -126,8 +127,7 @@ canvas {
 	padding-bottom: 10px;
     padding-left: 16px;
 	padding-right: 16px;
-  cursor: pointer;
-    
+    cursor: pointer;
 }
 
 /*USERNAME CONTINUE*/
@@ -137,7 +137,7 @@ canvas {
 }
 
 .talk-button {
-    float: left;
+    /*float: left;*/
     width: 19%;
 }
 
