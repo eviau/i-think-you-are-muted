@@ -1,5 +1,6 @@
 //check README.md for more information
 
+//VS Code intellisense
 /// <reference path="TSDef/p5.global-mode.d.ts" />
 
 //for testing purposes I can skip the login phase
@@ -7,40 +8,62 @@ var QUICK_LOGIN = false;
 //expose the room locations on the url and make them them shareable
 //you can access the world from any point. False ignores
 var ROOM_LINK = true;
-//join the world immediately but as invisible user
-//to have a preview of what it is
-var LURK_MODE = true;
+//if not specified by the url where is the starting point
+var defaultRoom = "likelikeOutside";
+
+var SOUND = true;
+var AFK = false;
 
 //native canvas resolution
 var WIDTH = 256;
 var HEIGHT = 200;
-var canvasScale = 2;
-var ASSET_SCALE = 2; //the backgrounds are scaled 2x
+
+var ASSETS_FOLDER = "assets/";
+
+//dynamically adjusted based on the window
+var canvasScale;
+
+//pixel text needs a 200+ pixels canvas to be a chat  
+//but the backgrounds are natively 128x100 scaled 2x
+//if that's the case this is a multiplier for all
+//the native backgrounds, areas, sprites, and coordinates
+var ASSET_SCALE = 2;
+
+//all avatars are the same size
 var AVATAR_W = 10;
 var AVATAR_H = 18;
 
 //the socket connection
 var socket;
 
-//character linear speed, pixels per milliseconds
+//avatar linear speed, pixels per milliseconds
 var SPEED = 50;
 
-//how long does it stay per character
-var MIN_BUBBLE_TIME = 2;
-var BUBBLE_TIME = 0.4;
+//prevent from spamming messages, enforced by the server too 
+var ANTI_SPAM = 1000;
+
+//text vars
+//MONOSPACED FONT
+//thank you https://datagoblin.itch.io/monogram
+var FONT_FILE = "assets/monogram_extended.ttf";
+var FONT_SIZE = 16; //to avoid blur
+var font;
+var TEXT_H = 8;
+var TEXT_PADDING = 3;
+var TEXT_LEADING = TEXT_H + 4;
+
+var LOGO_FILE = "logo.png";
+var MENU_BG_FILE = "menu_white.png";
+
+//how long does the text bubble stay
+var BUBBLE_TIME = 8;
 var BUBBLE_MARGIN = 3;
 
-//this object keeps track of all the current players, coordinates and color
-var players;
-//a reference to this particular player
-var me;
-var canvas;
+//when lurking the logo can disappear
+//in millisecs, -1 forever in lurk mode
+var LOGO_STAY = -1;
 
-var nickName = "";
-
-//lobby, avatar selection or game?
-var screen;
-
+//default page background 
 var PAGE_COLOR = "#000000";
 
 //sprite reference color for palette swap
@@ -70,37 +93,44 @@ var AVATAR_PALETTES = [
     ['#742f29', '#ffccaa', '#a8e72e', '#413830']
 
 ];
+//containers to speed up the re coloring
 var REF_COLORS_RGB = [];
 var AVATAR_PALETTES_RGB = [];
 
-//preset colors
-var COLORS = ['#FFEC27', '#00E436', '#29ADFF', '#FF77A8', '#FF004D', '#FCA'];
 var LABEL_NEUTRAL_COLOR = "#FFFFFF";
 var UI_BG = "#000000";
 
+/////////////////////////////////
+//global vars///////////////////
+
 //preloaded images
 var avatarSpriteSheets = [];
-
 //current bg and areas
 var bg;
 var areas;
-//command quequed for when the destination comes
+
+//command quequed for when the destination is reached
 var nextCommand;
+
 //my client only, rollover info
 var areaLabel;
 var labelColor;
 var rolledSprite;
 
+//UI
 //shows up at the beginning, centered, overlapped to room in lurk mode
 var logo;
 var logoCounter;
-var LOGO_STAY = -1; //in millisecs, -1 forever in lurk mode
+
+//when pointing on walkable area shows this
 var walkIcon;
 
 var menuBg, arrowButton;
 var menuGroup;
+//animation
+var avatarPreview;
 
-//description text variables, my client only
+//long text variables, message that shows on my client only (written text, narration, god messages...)
 var longText = "";
 var longTextLines;
 var longTextAlign;
@@ -108,31 +138,37 @@ var longTextLink = "";
 var LONG_TEXT_BOX_W = 220;
 var LONG_TEXT_PADDING = 4;
 
+//To show when banned or disconnected, disables the client on black screen
 var errorMessage = "";
 
-var TEXT_H = 8;
-var TEXT_PADDING = 3;
-var TEXT_LEADING = TEXT_H + 4;
 //speech bubbles
 var bubbles = [];
 
-//these are number, no need to send images
+//when the nickName is "" the player is invisible inactive: lurk mode
+//for admins it contains the password so it shouldn't be shared
+var nickName = "";
+
+//these are indexes of arrays
 var currentAvatar;
 var currentColor;
-var roomColor;
-var FONT_SIZE = 16; //to avoid blur
-var font;
-var ASSETS_FOLDER = "assets/";
 
-var defaultRoom = "likelikeOutside";
+//this object keeps track of all the current players, coordinates, bodies and color
+var players;
+//a reference to this particular player
+var me;
+//the canvas object
+var canvas;
+//draw loop state: user(name), avatar selection or game
+var screen;
 
-//prevent from spamming messages, enforced by the server too 
-var ANTI_SPAM = 1000;
 //set the time at the beginning of the time, the SEVENTIES
 var lastMessage = 0;
 
-//animation
-var avatarPreview;
+//sparkles
+var appearEffect, disappearEffect;
+
+var blips;
+var appearSound, disappearSound;
 
 
 //setup is called when all the assets have been loaded
@@ -140,18 +176,25 @@ function preload() {
 
     document.body.style.backgroundColor = PAGE_COLOR;
 
+    //avatar bodies are numbered, the could be assembled in a big sprite sheet
     for (var i = 0; i < 37; i++)
         avatarSpriteSheets[i] = loadImage(ASSETS_FOLDER + "character" + i + ".png");
 
-    //avatarSpriteSheets = [];
-    //avatarSpriteSheets[0] = loadImage(ASSETS_FOLDER + "character.png");
 
     //preload images
     for (var roomId in ROOMS) {
         if (ROOMS.hasOwnProperty(roomId)) {
             var room = ROOMS[roomId];
-            room.bgGraphics = loadImage(ASSETS_FOLDER + room.bg);
-            room.areaGraphics = loadImage(ASSETS_FOLDER + room.area);
+
+            if (room.bg != null)
+                room.bgGraphics = loadImage(ASSETS_FOLDER + room.bg);
+            else
+                console.log("WARNING: room " + roomId + " has no background graphics");
+
+            if (room.area != null)
+                room.areaGraphics = loadImage(ASSETS_FOLDER + room.area);
+            else
+                console.log("WARNING: room " + roomId + " has no area graphics");
 
             //preload sprites if any
             if (ROOMS[roomId].sprites != null)
@@ -191,10 +234,10 @@ function preload() {
         }
     }
 
-    menuBg = loadImage(ASSETS_FOLDER + "menu_white.png");
+    menuBg = loadImage(ASSETS_FOLDER + MENU_BG_FILE);
     arrowButton = loadImage(ASSETS_FOLDER + "arrowButton.png");
 
-    var logoSheet = loadSpriteSheet(ASSETS_FOLDER + "logo.png", 66, 82, 4);
+    var logoSheet = loadSpriteSheet(ASSETS_FOLDER + LOGO_FILE, 66, 82, 4);
     logo = loadAnimation(logoSheet);
     logo.frameDelay = 10;
 
@@ -202,9 +245,35 @@ function preload() {
     walkIcon = loadAnimation(walkIconSheet);
     walkIcon.frameDelay = 8;
 
-    //MONOSPACED FONT
-    //thank you https://datagoblin.itch.io/monogram
-    font = loadFont('assets/monogram_extended.ttf');
+    var appearEffectSheet = loadSpriteSheet(ASSETS_FOLDER + "appearEffect.png", 10, 18, 10);
+    appearEffect = loadAnimation(appearEffectSheet);
+    appearEffect.frameDelay = 4;
+    appearEffect.looping = false;
+
+    var disappearEffectSheet = loadSpriteSheet(ASSETS_FOLDER + "disappearEffect.png", 10, 18, 10);
+    disappearEffect = loadAnimation(disappearEffectSheet);
+    //disappearEffect.frameDelay = 4;
+    disappearEffect.looping = false;
+
+    font = loadFont(FONT_FILE);
+    soundFormats('mp3', 'ogg');
+
+    blips = [];
+    for (var i = 0; i <= 5; i++) {
+        var blip = loadSound(ASSETS_FOLDER + "blip" + i);
+        blip.playMode('sustain');
+        blip.setVolume(0.3);
+        blips.push(blip);
+    }
+
+    appearSound = loadSound(ASSETS_FOLDER + "appear");
+    appearSound.playMode('sustain');
+    appearSound.setVolume(0.3);
+
+    disappearSound = loadSound(ASSETS_FOLDER + "disappear");
+    disappearSound.playMode('sustain');
+    disappearSound.setVolume(0.3);
+
 
 }
 
@@ -235,24 +304,19 @@ function setup() {
     //since my avatars are pixelated and scaled I kill the antialiasing on canvas
     noSmooth();
 
-    if (LURK_MODE) {
-        //nickname blank means invisible
-        nickName = "";
-        currentColor = floor(random(0, AVATAR_PALETTES.length));
-        currentAvatar = floor(random(0, avatarSpriteSheets.length));
-        newGame();
-    }
-    else if (QUICK_LOGIN) {
+    if (QUICK_LOGIN) {
         //assign random name and avatar and get to the game
         nickName = "user" + floor(random(0, 1000));
         currentColor = floor(random(0, AVATAR_PALETTES.length));
         currentAvatar = floor(random(0, avatarSpriteSheets.length));
-
         newGame();
     }
     else {
-        screen = "lobby";
-        showUser();
+        //nickname blank means invisible - lurk mode
+        nickName = "";
+        currentColor = floor(random(0, AVATAR_PALETTES.length));
+        currentAvatar = floor(random(0, avatarSpriteSheets.length));
+        newGame();
     }
 
 
@@ -402,8 +466,7 @@ function newGame() {
 
 
     //paint background
-    roomColor = color(UI_BG);
-    background(roomColor);
+    background(UI_BG);
 
     //initialize players as object
     players = {};
@@ -421,12 +484,11 @@ function newGame() {
     //as long as the clients are open they should not lose their avatar and position even if the server is down
     socket.on('connect', function () {
 
-
         try {
             players = {};
 
             //ayay: connection lost while setting up character, just force a refresh
-            if (screen == "avatar" || screen == "lobby")
+            if (screen == "avatar" || screen == "user")
                 location.reload();
 
             bubbles = [];
@@ -434,11 +496,19 @@ function newGame() {
 
             //first time
             if (me == null) {
-                spawnZone = ROOMS[defaultRoom].spawn;
+                //join offscreen if missing parameters?
+                var sx = -100;
+                var sy = -100;
 
-                //randomize position if it's the first time
-                var sx = round(random(spawnZone[0] * ASSET_SCALE, spawnZone[2] * ASSET_SCALE));
-                var sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
+                if (ROOMS[defaultRoom].spawn == null) {
+                    console.log("WARNING: " + defaultRoom + " has no spawn area");
+                }
+                else {
+                    spawnZone = ROOMS[defaultRoom].spawn;
+                    //randomize position if it's the first time
+                    var sx = round(random(spawnZone[0] * ASSET_SCALE, spawnZone[2] * ASSET_SCALE));
+                    var sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
+                }
 
                 //send the server my name and avatar
                 socket.emit('join', { nickName: nickName, color: currentColor, avatar: currentAvatar, room: defaultRoom, x: sx, y: sy });
@@ -488,19 +558,25 @@ function newGame() {
 
                     //load level background
 
-                    //can be static or spreadsheet
-                    var bgg = ROOMS[p.room].bgGraphics;
-                    //find frame number
-                    var f = 1;
-                    if (ROOMS[p.room].frames != null)
-                        f = ROOMS[p.room].frames;
+                    if (ROOMS[p.room].bgGraphics != null) {
+                        //can be static or spreadsheet
+                        var bgg = ROOMS[p.room].bgGraphics;
 
-                    var ss = loadSpriteSheet(bgg, WIDTH, HEIGHT, f);
-                    bg = loadAnimation(ss);
+                        //find frame number
+                        var f = 1;
+                        if (ROOMS[p.room].frames != null)
+                            f = ROOMS[p.room].frames;
 
-                    if (ROOMS[p.room].frameDelay != null) {
-                        bg.frameDelay = ROOMS[p.room].frameDelay;
+                        var ss = loadSpriteSheet(bgg, WIDTH, HEIGHT, f);
+                        bg = loadAnimation(ss);
+
+                        if (ROOMS[p.room].frameDelay != null) {
+                            bg.frameDelay = ROOMS[p.room].frameDelay;
+                        }
                     }
+
+                    if (ROOMS[p.room].avatarScale == null)
+                        ROOMS[p.room].avatarScale = 2;
 
                     areas = ROOMS[p.room].areaGraphics;
                     if (areas == null)
@@ -554,9 +630,7 @@ function newGame() {
                             }
 
                         }
-                    //sprites: [
-                    //    { file: "pink-cabinet.png", position: [24, 89], label: "A time traveling game", command: { cmd: "link", arg: "https://cephalopodunk.itch.io/the-last-human-touch", label: "A time traveling game", point: [33, 95] } }
-                    //]
+
 
                 }
                 else {
@@ -577,6 +651,15 @@ function newGame() {
                         destinationX: me.destinationX,
                         destinationY: me.destinationY
                     });
+                }
+
+                if (p.new && p.nickName != "") {
+                    var spark = createSprite(p.x, p.y - AVATAR_H + 1);
+                    spark.addAnimation("spark", appearEffect);
+                    spark.scale = 2;
+                    spark.life = 60;
+                    if (SOUND)
+                        appearSound.play();
                 }
 
                 console.log("There are now " + Object.keys(players).length + " players in this room");
@@ -631,6 +714,15 @@ function newGame() {
             try {
                 console.log("Player " + p.id + " left");
 
+                if (p.disconnect && players[p.id].nickName != "") {
+                    var spark = createSprite(players[p.id].x, players[p.id].y - AVATAR_H + 1);
+                    spark.addAnimation("spark", disappearEffect);
+                    spark.scale = 2;
+                    spark.life = 60;
+                    if (SOUND)
+                        disappearSound.play();
+                }
+
                 if (players[p.id] != null)
                     removeSprite(players[p.id].sprite);
 
@@ -661,6 +753,10 @@ function newGame() {
 
                     pushBubbles(newBubble);
                     bubbles.push(newBubble);
+
+                    if (SOUND) {
+                        blips[floor(random(0, blips.length))].play();
+                    }
                 }
             } catch (e) {
                 console.log("Error on playerTalked");
@@ -683,7 +779,6 @@ function newGame() {
     socket.on('errorMessage',
         function (msg) {
             if (socket.id) {
-                console.log("Message from server: " + msg);
                 screen = "error";
                 errorMessage = msg;
                 hideChat();
@@ -693,6 +788,8 @@ function newGame() {
             }
         }
     );
+
+
 
     //when a server message arrives
     socket.on('godMessage',
@@ -719,8 +816,12 @@ function newGame() {
                     if (e != null)
                         e.innerHTML = "Username already taken";
                 }
-                else
-                    nameValidated(); //continue
+                else {
+                    console.log("Welcome " + nickName);
+                    hideUser();
+                    showAvatar();
+                    avatarSelection();
+                }
             }
         }
     );
@@ -735,6 +836,20 @@ function newGame() {
         }
     );
 
+    //player in the room is AFK
+    socket.on('playerBlurred', function (id) {
+
+        if (players[id] != null)
+            players[id].sprite.transparent = true;
+    });
+
+    //player in the room is AFK
+    socket.on('playerFocused', function (id) {
+        if (players[id] != null)
+            players[id].sprite.transparent = false;
+
+    });
+
     //when the client realizes it's being disconnected
     socket.on('disconnect', function () {
         //console.log("OH NO");
@@ -745,18 +860,21 @@ function newGame() {
         location.reload();
     });
 
-
     socket.open();
 
 }
 
+
+
 //this p5 function is called continuously 60 times per second by default
 function draw() {
-    if (screen == "lobby") {
+
+
+    if (screen == "user") {
         image(menuBg, 0, 0, WIDTH, HEIGHT);
     }
     //renders the avatar selection screen which can be fully within the canvas
-    if (screen == "avatar") {
+    else if (screen == "avatar") {
         image(menuBg, 0, 0, WIDTH, HEIGHT);
 
         textFont(font, FONT_SIZE * 2);
@@ -770,7 +888,7 @@ function draw() {
         menuGroup.draw();
 
     }
-    if (screen == "error") {
+    else if (screen == "error") {
         //end state, displays a message in full screen
         textFont(font, FONT_SIZE);
         textAlign(CENTER, CENTER);
@@ -779,18 +897,16 @@ function draw() {
         fill(LABEL_NEUTRAL_COLOR);
         text(errorMessage, floor(WIDTH / 8), floor(HEIGHT / 8), WIDTH - floor(WIDTH / 4), HEIGHT - floor(HEIGHT / 4));
     }
-    if (screen == "game") {
+    else if (screen == "game") {
         //draw a background
-        background(roomColor);
+        background(UI_BG);
         imageMode(CORNER);
 
         if (bg != null) {
             animation(bg, floor(WIDTH / 2), floor(HEIGHT / 2));
         }
 
-
         textFont(font, FONT_SIZE);
-        //text("ABCDE abcde", round(width / 2), (height / 2));
 
         //iterate through the players
         for (var playerId in players) {
@@ -799,7 +915,6 @@ function draw() {
                 var p = players[playerId];
 
                 var prevX, prevY;
-
 
                 //make sure the coordinates are non null since I may have created a player
                 //but I may still be waiting for the first update
@@ -841,7 +956,6 @@ function draw() {
 
                         //increment the position
                         position.add(increment);
-
 
                         //calculate new distance
                         var newDistance = position.dist(createVector(p.destinationX, p.destinationY));
@@ -926,7 +1040,7 @@ function draw() {
                             nextCommand = null;
                         }
 
-                    }//
+                    }
 
                     p.updatePosition();
 
@@ -994,15 +1108,14 @@ function draw() {
 
         //player and sprites label override areas
         if (rolledSprite != null && rolledSprite != me.sprite) {
-            if (rolledSprite.label != null) {
-                label = rolledSprite.label;
+            if (rolledSprite.label != null && rolledSprite.label != "") {
+                label = rolledSprite.label + ((rolledSprite.transparent) ? "[AFK]" : "");
             }
 
             if (rolledSprite.labelColor != null) {
                 labelColor = rolledSprite.labelColor;
             }
         }
-
 
         //draw rollover label
         if (label != "" && longText == "") {
@@ -1039,7 +1152,8 @@ function draw() {
                 fill(UI_BG);
                 rect(0, 0, width, height);
                 fill(LABEL_NEUTRAL_COLOR);
-                text(longText, LONG_TEXT_PADDING, LONG_TEXT_PADDING, width - LONG_TEXT_PADDING * 2, height - LONG_TEXT_PADDING * 2);
+                //-1 to avoid blurry glitch
+                text(longText, LONG_TEXT_PADDING, LONG_TEXT_PADDING, width - LONG_TEXT_PADDING * 2, height - LONG_TEXT_PADDING * 2 - 1);
             }
             else {
 
@@ -1080,7 +1194,6 @@ function draw() {
 
     }//end game
 
-    //
 
 }
 
@@ -1100,21 +1213,26 @@ function Player(p) {
     }
 
     //tint the image
-    this.avatarGraphics = paletteSwap(avatarSpriteSheets[p.avatar], AVATAR_PALETTES_RGB[p.color], this.tint);//avatarSpriteSheets[p.avatar];////tintGraphics(avatarSpriteSheets[p.avatar], COLORS[p.color]);
+    this.avatarGraphics = paletteSwap(avatarSpriteSheets[p.avatar], AVATAR_PALETTES_RGB[p.color], this.tint);
     this.spriteSheet = loadSpriteSheet(this.avatarGraphics, AVATAR_W, AVATAR_H, round(avatarSpriteSheets[p.avatar].width / AVATAR_W));
     this.walkAnimation = loadAnimation(this.spriteSheet);
     this.sprite = createSprite(100, 100);
 
-    this.sprite.scale = 2;
+    this.sprite.scale = ROOMS[p.room].avatarScale;
 
     this.sprite.addAnimation('walk', this.walkAnimation);
-    this.sprite.mouseActive = true;
+
+    if (this.nickName == "")
+        this.sprite.mouseActive = false;
+    else
+        this.sprite.mouseActive = true;
+
     //this.sprite.debug = true;
 
     //no parent in js? WHAAAAT?
     this.sprite.id = this.id;
     this.sprite.label = p.nickName;
-    //this.sprite.labelColor = COLORS[p.color];
+    this.sprite.transparent = false;
 
     //save the dominant color for bubbles and rollover label
     var c = color(AVATAR_PALETTES[p.color][2]);
@@ -1145,24 +1263,36 @@ function Player(p) {
     }
 
     this.updatePosition = function () {
-
         this.sprite.position.x = round(this.x);
         this.sprite.position.y = round(this.y - AVATAR_H / 2 * this.sprite.scale);
     }
 
+    if (this.nickName != "") {
+        this.sprite.onMouseOver = function () {
+            rolledSprite = this;
+        };
 
-    this.sprite.onMouseOver = function () {
-        rolledSprite = this;
-    };
+        this.sprite.onMouseOut = function () {
+            if (rolledSprite == this)
+                rolledSprite = null;
+        };
 
-    this.sprite.onMouseOut = function () {
-        if (rolledSprite == this)
-            rolledSprite = null;
-    };
+        this.sprite.onMousePressed = function () {
 
-    this.sprite.onMousePressed = function () {
+        };
+    }
+    //ugly as fuck but javascript made me do it
+    this.sprite.originalDraw = this.sprite.draw;
 
-    };
+    this.sprite.draw = function () {
+        if (this.transparent)
+            tint(255, 100);
+
+        this.originalDraw();
+
+        if (this.transparent)
+            noTint();
+    }
 
     this.stopAnimation();
 }
@@ -1190,7 +1320,7 @@ function Bubble(pid, message, col, x, y, oy) {
         this.color = color(AVATAR_PALETTES[col][3]);
 
     this.orphan = false;
-    this.counter = MIN_BUBBLE_TIME + message.length * BUBBLE_TIME;
+    this.counter = BUBBLE_TIME;
 
     //to fix an inexplicable bug that mangles bitmap text on small textfields
     //I scale short messages
@@ -1319,11 +1449,8 @@ function mouseMoved() {
             if (c[0] == 255 && c[1] == 255 && c[2] == 255) {
                 if (walkIcon != null)
                     walkIcon.visible = true;
-
             }
             else {
-
-
                 var command = getCommand(c, me.room);
                 if (command != null)
                     if (command.label != null) {
@@ -1341,7 +1468,7 @@ function canvasClicked() {
     if (screen == "error") {
         location.reload();
     }
-    if (nickName != "") {
+    else if (nickName != "" && screen == "game") {
         //exit text
         if (longText != "") {
 
@@ -1350,9 +1477,15 @@ function canvasClicked() {
 
             longText = "";
             longTextLink = "";
-
         }
         else if (me != null) {
+
+            if (AFK) {
+                AFK = false;
+                if (socket != null)
+                    socket.emit('focus', { room: me.room });
+            }
+
             //clicked on person
             if (rolledSprite != null) {
 
@@ -1500,8 +1633,6 @@ function executeCommand(c) {
             }
             else
                 print("Warning for text: make sure to specify arg as text")
-
-
             break;
 
 
@@ -1515,7 +1646,7 @@ function keyPressed() {
         var field = document.getElementById("chatField");
         field.focus();
     }
-    if (screen == "lobby") {
+    if (screen == "user") {
         var field = document.getElementById("lobby-field");
         field.focus();
     }
@@ -1524,8 +1655,46 @@ function keyPressed() {
 //when I hits send
 function talk(msg) {
 
-    if (msg.replace(/\s/g, '') != "" && nickName != "")
-        socket.emit('talk', { message: msg, color: me.color, room: me.room, x: me.x, y: me.y });
+    if (AFK) {
+        AFK = false;
+        if (socket != null && me != null)
+            socket.emit('focus', { room: me.room });
+    }
+
+    if (msg.replace(/\s/g, '') != "" && nickName != "") {
+
+        var command = commandLine(msg)
+
+        if (!command)
+            socket.emit('talk', { message: msg, color: me.color, room: me.room, x: me.x, y: me.y });
+    }
+}
+
+//client side command line
+function commandLine(msg) {
+    var found = false;
+
+    switch (msg.toLowerCase()) {
+        case "/sound off":
+            SOUND = false;
+            found = true;
+            break;
+        case "/sound on":
+            SOUND = true;
+            found = true;
+            break;
+        case "/afk":
+            if (socket != null && me != null)
+                socket.emit('blur', { room: me.room });
+
+            AFK = true;
+            found = true;
+            break;
+
+
+    }
+
+    return found;
 }
 
 //called by the talk button in the html
@@ -1553,23 +1722,18 @@ function nameOk() {
 
     if (v != "") {
         nickName = v;
-        socket.emit('sendName', v);
+
+        //if socket !null the connection has been established ie lurk mode
+        if (socket != null) {
+            socket.emit('sendName', v);
+        }
+
         //prevent page from refreshing on enter (default form behavior)
         return false;
     }
-
 }
 
-function nameValidated() {
 
-    console.log(">welcome " + nickName);
-    hideUser();
-    showAvatar();
-    //the div container
-
-    //the canvas background
-    avatarSelection();
-}
 
 //draws a random avatar body in the center of the canvas
 //colors it a random color
@@ -1584,7 +1748,7 @@ function previewAvatar() {
     if (avatarPreview != null)
         removeSprite(avatarPreview);
 
-    var aGraphics = paletteSwap(avatarSpriteSheets[currentAvatar], AVATAR_PALETTES_RGB[currentColor]);//avatarSpriteSheets[p.avatar];////tintGraphics(avatarSpriteSheets[p.avatar], COLORS[p.color]);
+    var aGraphics = paletteSwap(avatarSpriteSheets[currentAvatar], AVATAR_PALETTES_RGB[currentColor]);
     var aSS = loadSpriteSheet(aGraphics, AVATAR_W, AVATAR_H, round(avatarSpriteSheets[currentAvatar].width / AVATAR_W));
     var aAnim = loadAnimation(aSS);
     avatarPreview = createSprite(width / 2, height / 2);
@@ -1593,7 +1757,6 @@ function previewAvatar() {
     //avatarPreview.debug = true;
     avatarPreview.animation.stop();
     menuGroup.add(avatarPreview);
-
 }
 
 function paletteSwap(ss, palette, t) {
@@ -1659,7 +1822,7 @@ function joinGame() {
         newGame();
     }
     else {
-        screen = "lobby";
+        screen = "user";
         showUser();
     }
 
@@ -1722,7 +1885,6 @@ function hideJoin() {
     document.getElementById("join-form").style.display = "none";
 }
 
-
 //enable the chat input when it's time
 function showChat() {
     var e = document.getElementById("talk-form");
@@ -1748,3 +1910,16 @@ function preventBehavior(e) {
 };
 
 document.addEventListener("touchmove", preventBehavior, { passive: false });
+
+// Active
+window.addEventListener('focus', function () {
+    if (socket != null && me != null)
+        socket.emit('focus', { room: me.room });
+});
+
+// Inactive
+window.addEventListener('blur', function () {
+    if (socket != null && me != null)
+        socket.emit('blur', { room: me.room });
+});
+

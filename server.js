@@ -2,6 +2,11 @@
 
 require('dotenv').config();
 
+/*
+ADMINS=username1|pass1,username2|pass2
+PORT = 3000
+*/
+
 var port = process.env.PORT || 3000;
 
 //create a web application that uses the express frameworks and socket.io to communicate via http (the web protocol)
@@ -162,6 +167,8 @@ io.on('connection', function (socket) {
                     //this is sent to the client upon connection
                     socket.emit('serverMessage', 'Hello welcome!');
 
+                    newPlayer.new = true;
+
                     //send all players information about the new player
                     //upon creation destination and position are the same 
                     io.to(playerInfo.room).emit('playerJoined', newPlayer);
@@ -180,7 +187,7 @@ io.on('connection', function (socket) {
     socket.on('disconnect', function () {
         try {
             console.log("Player disconnected " + socket.id);
-            io.sockets.emit('playerLeft', { id: socket.id });
+            io.sockets.emit('playerLeft', { id: socket.id, disconnect: true });
             //send the disconnect
             //delete the player object
             delete gameState.players[socket.id];
@@ -287,13 +294,14 @@ io.on('connection', function (socket) {
 
                 //broadcast the change to everybody in the current room
                 //from the client perspective leaving the room is the same as disconnecting
-                io.to(obj.from).emit('playerLeft', { id: socket.id });
+                io.to(obj.from).emit('playerLeft', { id: socket.id, disconnect: false });
 
                 //same for joining, sending everybody in the room the player state
                 var playerObject = gameState.players[socket.id];
                 playerObject.room = obj.to;
                 playerObject.x = playerObject.destinationX = obj.x;
                 playerObject.y = playerObject.destinationY = obj.y;
+                playerObject.new = false;
                 io.to(obj.to).emit('playerJoined', playerObject);
             }
         } catch (e) {
@@ -317,7 +325,6 @@ io.on('connection', function (socket) {
         }
     });
 
-
     //when I receive a user name validate it
     socket.on('sendName', function (nn) {
         try {
@@ -330,15 +337,34 @@ io.on('connection', function (socket) {
         }
     });
 
+    //user afk
+    socket.on('focus', function (obj) {
+        try {
+            //console.log(socket.id + " back from AFK");
+            io.to(obj.room).emit('playerFocused', socket.id);
+        } catch (e) {
+            console.log("Error on focus " + socket.id + "?");
+            console.error(e);
+        }
+    });
+
+    socket.on('blur', function (obj) {
+        try {
+            //console.log(socket.id + " is AFK");
+            io.to(obj.room).emit('playerBlurred', socket.id)
+        } catch (e) {
+            console.log("Error on blur " + socket.id + "?");
+            console.error(e);
+        }
+    });
+
 });
 
 function validateName(nn) {
-    //console.log("Validating " + nn);
 
     var admin = false;
     var duplicate = false;
     var reserved = false;
-
 
     //check if the nickname is a name + password combo
     var combo = nn.split("|");
@@ -440,6 +466,7 @@ function adminCommand(adminSocket, str) {
                 io.sockets.emit('godMessage', msg);
                 break;
 
+
             //add to the list of banned IPs
             case "ban":
                 var IP = IPByName(cmd[1]);
@@ -472,6 +499,7 @@ function adminCommand(adminSocket, str) {
     }
 }
 
+//admin functions, the admin exists in the client frontend so they don't have access to ip and id of other users
 function socketByName(nick) {
     var s = null;
     for (var id in gameState.players) {
@@ -509,7 +537,7 @@ function IPByName(nick) {
 }
 
 
-//listen to the port 3000
+//listen to the port 3000 this powers the whole socket.io
 http.listen(port, function () {
     console.log('listening on *:3000');
 });
@@ -529,6 +557,7 @@ setInterval(function () {
         }
     }
 }, 1000);
+
 
 
 //in my gallery people can swear but not use slurs, override bad-words list, and add my own, pardon for my french
