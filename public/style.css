@@ -47,6 +47,7 @@ canvas {
     margin: auto;
     text-align: center;
 	margin-top: 8px;
+	
 }
 
 #talk-form {
@@ -146,6 +147,33 @@ canvas {
   
 }
 
+#info {
+	visibility: hidden;
+}
+
+/*bottom link*/
+.info {
+	
+	position: absolute;
+	right: 0px;
+	bottom: 0px;
+	display: block;
+	text-align: right;
+	margin-bottom: 8px;
+	margin-right: 8px;
+}
+
+.info a {
+	text-decoration: none;
+	color: white;
+}
+
+.info a:hover {
+	text-decoration: none;
+	color:#ff77a8;;
+}
+
+
 /* On small screen stack the talk button */
 @media screen and (max-height: 450px) {
   .talk-button {
@@ -157,6 +185,15 @@ canvas {
 		margin-bottom: 4px;
 	}
 
+	.info {
+		display: none;
+	}
+}
+
+@media screen and (max-width: 800px) {
+	.info {
+		display: none;
+	}
 }
 
 .talk-button:active,
@@ -206,22 +243,6 @@ canvas {
 	text-align: center;
 }
 
-/*bottom link*/
-.info {
-	text-align: right;
-	margin-top: 40px;
-	margin-right: 40px;
-}
-
-.info a {
-	text-decoration: none;
-	color: white;
-}
-
-.info a:hover {
-	text-decoration: none;
-	color:#ff77a8;;
-}
 
 
 

@@ -55,6 +55,9 @@ var TEXT_LEADING = TEXT_H + 4;
 var LOGO_FILE = "logo.png";
 var MENU_BG_FILE = "menu_white.png";
 
+//shows up at first non lurking login
+var INTRO_TEXT = "Click/tap to move";
+
 //how long does the text bubble stay
 var BUBBLE_TIME = 8;
 var BUBBLE_MARGIN = 3;
@@ -77,7 +80,7 @@ var AVATAR_PALETTES = [
     ['#a28879', '#e27c32', '#ca466d', '#1e839d'],
     ['#413830', '#e27c32', '#111d35', '#ca466d'],
     ['#be1250', '#e27c32', '#ffec27', '#1e839d'],
-    ['#ffec27', '#e27c32', '#065ab5', '#422136'],
+    ['#ffec27', '#e27c32', '#1e839d', '#422136'],
 
     ['#413830', '#8f3f17', '#ff004d', '#413830'],
     ['#413830', '#8f3f17', '#ff9d81', '#413830'],
@@ -100,11 +103,18 @@ var AVATAR_PALETTES_RGB = [];
 var LABEL_NEUTRAL_COLOR = "#FFFFFF";
 var UI_BG = "#000000";
 
+//number of avatars
+var AVATARS = 37;
+
 /////////////////////////////////
 //global vars///////////////////
 
 //preloaded images
-var avatarSpriteSheets = [];
+var walkSheets = [];
+var emoteSheets = [];
+//image
+var allSheets;
+
 //current bg and areas
 var bg;
 var areas;
@@ -170,16 +180,36 @@ var appearEffect, disappearEffect;
 var blips;
 var appearSound, disappearSound;
 
+//if the server restarts the clients reconnects seamlessly
+//don't do first log things
+var firstLog = true;
 
 //setup is called when all the assets have been loaded
 function preload() {
 
     document.body.style.backgroundColor = PAGE_COLOR;
 
-    //avatar bodies are numbered, the could be assembled in a big sprite sheet
-    for (var i = 0; i < 37; i++)
-        avatarSpriteSheets[i] = loadImage(ASSETS_FOLDER + "character" + i + ".png");
+    //avatar spritesheets are programmatically tinted so they need to be pimages before being loaded as spritesheets
 
+    //METHOD 1:
+    //avatar spritesheets are numbered and sequential, one per animation as exported from Piskel
+    //it's a lot of requests for tiny images
+    /*
+    for (var i = 0; i < AVATARS; i++) {
+        walkSheets[i] = loadImage(ASSETS_FOLDER + "character" + i + ".png");
+    }
+
+    for (var i = 0; i < AVATARS; i++) {
+        emoteSheets[i] = loadImage(ASSETS_FOLDER + "character" + i + "-emote.png");
+    }
+    */
+
+    //METHOD 2:
+    //all spritesheets are packed in one long file, preloaded and split on setup
+    //packed with this tool  https://www.codeandweb.com/free-sprite-sheet-packer
+    //layout horizontal, 0 padding (double check that)
+
+    allSheets = loadImage(ASSETS_FOLDER + "allAvatars.png");
 
     //preload images
     for (var roomId in ROOMS) {
@@ -202,7 +232,6 @@ function preload() {
                     var spr = ROOMS[roomId].sprites[i];
                     spr.spriteGraphics = loadImage(ASSETS_FOLDER + spr.file);
                 }
-
         }
     }
 
@@ -279,6 +308,44 @@ function preload() {
 
 function setup() {
 
+    if (walkSheets.length == 0 && allSheets != null) {
+        print("slice spritesheet");
+        /*
+                var c = color(colorString);
+                let pg = createGraphics(img.width, img.height);
+                pg.noSmooth();
+                pg.tint(red(c), green(c), blue(c), 255);
+                pg.image(img, 0, 0, img.width, img.height);
+                //i need to convert it back to image in order to use it as spritesheet
+                var img = createImage(pg.width, pg.height);
+                img.copy(pg, 0, 0, pg.width, pg.height, 0, 0, pg.width, pg.height);
+        
+                return img;
+        */
+        var sliceX = 0;
+        var WALK_F = 4;
+        var EMOTE_F = 2;
+
+        for (var i = 0; i < AVATARS; i++) {
+
+            var walkSheet = createImage(AVATAR_W * WALK_F, AVATAR_H);
+            walkSheet.copy(allSheets, sliceX, 0, AVATAR_W * WALK_F, AVATAR_H, 0, 0, AVATAR_W * WALK_F, AVATAR_H);
+            walkSheets[i] = walkSheet;
+
+            sliceX += AVATAR_W * WALK_F;
+
+            var emoteSheet = createImage(AVATAR_W * EMOTE_F, AVATAR_H);
+            emoteSheet.copy(allSheets, sliceX, 0, AVATAR_W * EMOTE_F, AVATAR_H, 0, 0, AVATAR_W * EMOTE_F, AVATAR_H);
+            emoteSheets[i] = emoteSheet;
+
+            sliceX += AVATAR_W * EMOTE_F;
+
+            //copy(srcImage, sx, sy, sw, sh, dx, dy, dw, dh)
+
+            //walkSheets[i] = loadImage(ASSETS_FOLDER + "character" + i + ".png");
+        }
+    }
+
     if (ROOM_LINK) {
         //url parameters can pass the room so a room can be linked
         const urlParams = new URLSearchParams(window.location.search);
@@ -294,7 +361,8 @@ function setup() {
     //create a canvas
     canvas = createCanvas(WIDTH, HEIGHT);
     //accept only the clicks on the canvas (not the ones on the UI)
-    canvas.mouseReleased(canvasClicked);
+    canvas.mousePressed(canvasPressed);
+    canvas.mouseReleased(canvasReleased);
     //by default the canvas is attached to the bottom, i want a 
     canvas.parent('canvas-container');
     canvas.mouseOut(outOfCanvas);
@@ -308,18 +376,18 @@ function setup() {
         //assign random name and avatar and get to the game
         nickName = "user" + floor(random(0, 1000));
         currentColor = floor(random(0, AVATAR_PALETTES.length));
-        currentAvatar = floor(random(0, avatarSpriteSheets.length));
+        currentAvatar = floor(random(0, walkSheets.length));
         newGame();
     }
     else {
         //nickname blank means invisible - lurk mode
         nickName = "";
         currentColor = floor(random(0, AVATAR_PALETTES.length));
-        currentAvatar = floor(random(0, avatarSpriteSheets.length));
+        currentAvatar = floor(random(0, walkSheets.length));
         newGame();
     }
 
-
+    showInfo();
 }
 
 function windowResized() {
@@ -398,7 +466,7 @@ function avatarSelection() {
     previousBody.onMouseReleased = function () {
         currentAvatar -= 1;
         if (currentAvatar < 0)
-            currentAvatar = avatarSpriteSheets.length - 1;
+            currentAvatar = AVATARS - 1;
 
         previewAvatar();
         this.animation.changeFrame(1);
@@ -406,7 +474,7 @@ function avatarSelection() {
 
     nextBody.onMouseReleased = function () {
         currentAvatar += 1;
-        if (currentAvatar >= avatarSpriteSheets.length)
+        if (currentAvatar >= AVATARS)
             currentAvatar = 0;
 
         previewAvatar();
@@ -510,6 +578,8 @@ function newGame() {
                     var sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
                 }
 
+
+
                 //send the server my name and avatar
                 socket.emit('join', { nickName: nickName, color: currentColor, avatar: currentAvatar, room: defaultRoom, x: sx, y: sy });
             }
@@ -546,9 +616,16 @@ function newGame() {
                     deleteAllSprites();
 
                     players[p.id] = me = new Player(p);
+
+                    /*
                     me.sprite.mouseActive = false;
                     me.sprite.onMouseOver = function () { };
                     me.sprite.onMouseOut = function () { };
+                    */
+                    //click on me = emote
+                    me.sprite.onMousePressed = function () { socket.emit('emote', { room: me.room, em: true }); };
+                    me.sprite.onMouseReleased = function () { socket.emit('emote', { room: me.room, em: false }); };
+
 
                     //if a page background is specified change it
                     if (ROOMS[p.room].pageBg != null)
@@ -653,13 +730,21 @@ function newGame() {
                     });
                 }
 
-                if (p.new && p.nickName != "") {
+                if (p.new && p.nickName != "" && firstLog) {
                     var spark = createSprite(p.x, p.y - AVATAR_H + 1);
                     spark.addAnimation("spark", appearEffect);
                     spark.scale = 2;
                     spark.life = 60;
                     if (SOUND)
                         appearSound.play();
+
+                    if (p.id == me.id) {
+                        longText = INTRO_TEXT;
+                        longTextLines = 1;
+                        longTextAlign = "center";//or center
+                    }
+
+                    firstLog = false;
                 }
 
                 console.log("There are now " + Object.keys(players).length + " players in this room");
@@ -714,17 +799,26 @@ function newGame() {
             try {
                 console.log("Player " + p.id + " left");
 
-                if (p.disconnect && players[p.id].nickName != "") {
-                    var spark = createSprite(players[p.id].x, players[p.id].y - AVATAR_H + 1);
-                    spark.addAnimation("spark", disappearEffect);
-                    spark.scale = 2;
-                    spark.life = 60;
-                    if (SOUND)
-                        disappearSound.play();
-                }
+                if (players[p.id] != null) {
+                    if (p.disconnect && players[p.id].nickName != "") {
+                        var spark = createSprite(players[p.id].x, players[p.id].y - AVATAR_H + 1);
+                        spark.addAnimation("spark", disappearEffect);
+                        spark.scale = 2;
+                        spark.life = 60;
+                        if (SOUND)
+                            disappearSound.play();
+                    }
 
-                if (players[p.id] != null)
-                    removeSprite(players[p.id].sprite);
+                    if (players[p.id].sprite != null) {
+                        if (players[p.id].sprite == rolledSprite) {
+                            rolledSprite = null;
+                        }
+
+                        removeSprite(players[p.id].sprite);
+                    }
+
+
+                }
 
                 delete players[p.id];
                 console.log("There are now " + Object.keys(players).length + " players in this room");
@@ -804,6 +898,34 @@ function newGame() {
         }
     );
 
+    //when a server message arrives
+    socket.on('playerEmoted',
+        function (id, em) {
+            try {
+                if (players[id] != null) {
+                    if (players[id].sprite != null) {
+
+                        if (em) {
+                            players[id].sprite.changeAnimation("emote");
+                            players[id].sprite.animation.changeFrame(1);
+                            players[id].sprite.animation.stop();
+                        }
+                        else {
+                            players[id].sprite.changeAnimation("emote");
+                            players[id].sprite.animation.changeFrame(0);
+                            players[id].sprite.animation.stop();
+                        }
+                    }
+
+
+                }
+
+            } catch (e) {
+                console.log("Error on playerTalked");
+                console.error(e);
+            }
+        });
+
 
     //when a server message arrives
     socket.on('nameValidation',
@@ -855,9 +977,9 @@ function newGame() {
         //console.log("OH NO");
     });
 
-    //server forces refresh (on disconnect)
+    //server forces refresh (on disconnect or to force load a new version of the client)
     socket.on('refresh', function () {
-        location.reload();
+        location.reload(true);
     });
 
     socket.open();
@@ -1029,7 +1151,7 @@ function draw() {
 
                     }
                     else {
-                        p.stopAnimation();
+                        //p.stopAnimation();
                     }
 
                     //////this part is only triggered by ME
@@ -1213,14 +1335,22 @@ function Player(p) {
     }
 
     //tint the image
-    this.avatarGraphics = paletteSwap(avatarSpriteSheets[p.avatar], AVATAR_PALETTES_RGB[p.color], this.tint);
-    this.spriteSheet = loadSpriteSheet(this.avatarGraphics, AVATAR_W, AVATAR_H, round(avatarSpriteSheets[p.avatar].width / AVATAR_W));
+    this.avatarGraphics = paletteSwap(walkSheets[p.avatar], AVATAR_PALETTES_RGB[p.color], this.tint);
+    this.spriteSheet = loadSpriteSheet(this.avatarGraphics, AVATAR_W, AVATAR_H, round(walkSheets[p.avatar].width / AVATAR_W));
     this.walkAnimation = loadAnimation(this.spriteSheet);
+    //emote
+    this.emoteGraphics = paletteSwap(emoteSheets[p.avatar], AVATAR_PALETTES_RGB[p.color], this.tint);
+    this.emoteSheet = loadSpriteSheet(this.emoteGraphics, AVATAR_W, AVATAR_H, round(emoteSheets[p.avatar].width / AVATAR_W));
+    this.emoteAnimation = loadAnimation(this.emoteSheet);
+    this.emoteAnimation.frameDelay = 10;
+
     this.sprite = createSprite(100, 100);
 
     this.sprite.scale = ROOMS[p.room].avatarScale;
 
     this.sprite.addAnimation('walk', this.walkAnimation);
+    this.sprite.addAnimation('emote', this.emoteAnimation);
+
 
     if (this.nickName == "")
         this.sprite.mouseActive = false;
@@ -1254,11 +1384,13 @@ function Player(p) {
         this.sprite.visible = false;
 
     this.stopAnimation = function () {
+        this.sprite.changeAnimation("emote");
         this.sprite.animation.changeFrame(0);
         this.sprite.animation.stop();
     }
 
     this.playAnimation = function () {
+        this.sprite.changeAnimation("walk");
         this.sprite.animation.play();
     }
 
@@ -1430,7 +1562,7 @@ function touchEnded() {
 
     if (touchDown) {
         touchDown = false;
-        canvasClicked();
+        canvasReleased();
     }
 }
 
@@ -1462,15 +1594,32 @@ function mouseMoved() {
     }
 }
 
+//stop emoting
+function canvasPressed() {
+
+    //emote only if not walking
+    if (nickName != "" && screen == "game" && mouseButton == RIGHT) {
+        if (me.destinationX == me.x && me.destinationY == me.y)
+            socket.emit('emote', { room: me.room, em: true });
+    }
+}
+
 
 //when I click to move
-function canvasClicked() {
+function canvasReleased() {
+
+    //print("CLICK " + mouseButton);
+
     if (screen == "error") {
         location.reload();
     }
-    else if (nickName != "" && screen == "game") {
+    else if (nickName != "" && screen == "game" && mouseButton == RIGHT) {
+        if (me.destinationX == me.x && me.destinationY == me.y)
+            socket.emit('emote', { room: me.room, em: false });
+    }
+    else if (nickName != "" && screen == "game" && mouseButton == LEFT) {
         //exit text
-        if (longText != "") {
+        if (longText != "" && longText != INTRO_TEXT) {
 
             if (longTextLink != "")
                 window.open(longTextLink, '_blank');
@@ -1479,6 +1628,9 @@ function canvasClicked() {
             longTextLink = "";
         }
         else if (me != null) {
+
+            longText = "";
+            longTextLink = "";
 
             if (AFK) {
                 AFK = false;
@@ -1493,7 +1645,7 @@ function canvasClicked() {
                 if (rolledSprite.id != null) {
                     nextCommand = null;
                     var t = players[rolledSprite.id];
-                    if (t != null) {
+                    if (t != null && t != me) {
                         var d = (me.x < t.x) ? -(AVATAR_W * 2) : (AVATAR_W * 2);
                         socket.emit('move', { x: me.x, y: me.y, room: me.room, destinationX: t.x + d, destinationY: t.y });
                     }
@@ -1691,7 +1843,6 @@ function commandLine(msg) {
             found = true;
             break;
 
-
     }
 
     return found;
@@ -1739,7 +1890,7 @@ function nameOk() {
 //colors it a random color
 function randomAvatar() {
     currentColor = floor(random(0, AVATAR_PALETTES.length));
-    currentAvatar = floor(random(0, avatarSpriteSheets.length));
+    currentAvatar = floor(random(0, AVATARS));
     previewAvatar();
 }
 
@@ -1748,14 +1899,15 @@ function previewAvatar() {
     if (avatarPreview != null)
         removeSprite(avatarPreview);
 
-    var aGraphics = paletteSwap(avatarSpriteSheets[currentAvatar], AVATAR_PALETTES_RGB[currentColor]);
-    var aSS = loadSpriteSheet(aGraphics, AVATAR_W, AVATAR_H, round(avatarSpriteSheets[currentAvatar].width / AVATAR_W));
+    var aGraphics = paletteSwap(emoteSheets[currentAvatar], AVATAR_PALETTES_RGB[currentColor]);
+    var aSS = loadSpriteSheet(aGraphics, AVATAR_W, AVATAR_H, round(emoteSheets[currentAvatar].width / AVATAR_W));
     var aAnim = loadAnimation(aSS);
     avatarPreview = createSprite(width / 2, height / 2);
     avatarPreview.scale = 4;
     avatarPreview.addAnimation("default", aAnim);
+    avatarPreview.animation.frameDelay = 10;
     //avatarPreview.debug = true;
-    avatarPreview.animation.stop();
+    //avatarPreview.animation.stop();
     menuGroup.add(avatarPreview);
 }
 
@@ -1818,7 +1970,7 @@ function joinGame() {
         //assign random name and avatar and get to the game
         nickName = "user" + floor(random(0, 1000));
         currentColor = floor(random(0, AVATAR_PALETTES.length));
-        currentAvatar = floor(random(0, avatarSpriteSheets.length));
+        currentAvatar = floor(random(0, emoteSheets.length));
         newGame();
     }
     else {
@@ -1866,6 +2018,16 @@ function showAvatar() {
     var e = document.getElementById("avatar-form");
     if (e != null) {
         e.style.display = "block";
+    }
+
+}
+
+//don't show the link while the canvas loads
+function showInfo() {
+
+    var e = document.getElementById("info");
+    if (e != null) {
+        e.style.visibility = "visible";
     }
 
 }

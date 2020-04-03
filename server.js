@@ -29,6 +29,9 @@ var MAX_PLAYERS = -1;
 //refuse people when a room is full 
 var MAX_PLAYERS_PER_ROOM = 200;
 
+//views since the server started counts relogs
+var visits = 0;
+
 /*
 A very rudimentary admin system. 
 Reserved usernames and admin pass are stored in .env file as
@@ -169,11 +172,15 @@ io.on('connection', function (socket) {
 
                     newPlayer.new = true;
 
+                    //let's not count lurkers
+                    if (playerInfo.nickName != "")
+                        visits++;
+
                     //send all players information about the new player
                     //upon creation destination and position are the same 
                     io.to(playerInfo.room).emit('playerJoined', newPlayer);
 
-                    console.log("There are now " + Object.keys(gameState.players).length + " players on this server");
+                    console.log("There are now " + Object.keys(gameState.players).length + " players on this server. Total visits " + visits);
                 }
             }
         } catch (e) {
@@ -286,7 +293,7 @@ io.on('connection', function (socket) {
                 socket.emit('godMessage', "The room looks full");
             }
             else {
-                console.log("Player " + socket.id + " moved from " + obj.from + " to " + obj.to);
+                //console.log("Player " + socket.id + " moved from " + obj.from + " to " + obj.to);
 
 
                 socket.leave(obj.from);
@@ -333,6 +340,16 @@ io.on('connection', function (socket) {
             socket.emit('nameValidation', res);
         } catch (e) {
             console.log("Error on sendName " + socket.id + "?");
+            console.error(e);
+        }
+    });
+
+    //when a character emote animation changes
+    socket.on('emote', function (obj) {
+        try {
+            io.to(obj.room).emit('playerEmoted', socket.id, obj.em);
+        } catch (e) {
+            console.log("Error on emote " + socket.id + "?");
             console.error(e);
         }
     });
@@ -424,6 +441,7 @@ function adminCommand(adminSocket, str) {
                 if (s != null) {
                     //shadow disconnect
                     s.disconnect();
+
                 }
                 else {
                     //popup to admin
@@ -435,6 +453,17 @@ function adminCommand(adminSocket, str) {
                 var s = idByName(cmd[1]);
                 if (s != null) {
                     gameState.players[s].muted = true;
+                }
+                else {
+                    //popup to admin
+                    adminSocket.emit("popup", "I can't find a user named " + cmd[1]);
+                }
+                break;
+
+            case "unmute":
+                var s = idByName(cmd[1]);
+                if (s != null) {
+                    gameState.players[s].muted = false;
                 }
                 else {
                     //popup to admin
@@ -489,6 +518,12 @@ function adminCommand(adminSocket, str) {
             case "unban":
                 //releases the ban
                 banned = [];
+                break;
+
+            //forces a hard refresh - all players disconnect
+            //used to load a new version of the client
+            case "refresh":
+                io.sockets.emit("refresh");
                 break;
 
         }
