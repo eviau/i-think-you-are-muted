@@ -3,14 +3,28 @@
 //VS Code intellisense
 /// <reference path="TSDef/p5.global-mode.d.ts" />
 
+/*
+The client and server version strings MUST be the same!
+They can be used to force clients to hard refresh to load the latest client.
+If the server gets updated it can be restarted, but if there are active clients (users' open browsers) they could be outdated and create issues.
+If the VERSION vars are mismatched they will send all clients in an infinite refresh loop. Make sure you update sketch.js before restarting server.js
+*/
+var VERSION = "1.0";
+
 //for testing purposes I can skip the login phase
+//and join with a random avatar
 var QUICK_LOGIN = false;
+
+//true: preview the room as invisible user
+//false: go directly to the login without previewing the room
+//ignored if QUICK_LOGIN is true
+var LURK_MODE = true;
+
 //expose the room locations on the url and make them them shareable
 //you can access the world from any point. False ignores
 var ROOM_LINK = true;
-//if not specified by the url where is the starting point
-var defaultRoom = "likelikeOutside";
 
+//can by changed by user
 var SOUND = true;
 var AFK = false;
 
@@ -18,29 +32,40 @@ var AFK = false;
 var WIDTH = 256;
 var HEIGHT = 200;
 
-var ASSETS_FOLDER = "assets/";
+/*
+The original resolution (pre canvas stretch) is 128x100 multiplied by 2 because
+otherwise there wouldn't be enough room for pixel text.
+Basically the backgrounds' pixels are twice the pixels of the text.
+ASSET_SCALE is a multiplier for all backgrounds, areas, sprites, and coordinates
+that are natively drawn at 128x100
+*/
+var ASSET_SCALE = 2;
 
 //dynamically adjusted based on the window
 var canvasScale;
 
-//pixel text needs a 200+ pixels canvas to be a chat  
-//but the backgrounds are natively 128x100 scaled 2x
-//if that's the case this is a multiplier for all
-//the native backgrounds, areas, sprites, and coordinates
-var ASSET_SCALE = 2;
-
 //all avatars are the same size
 var AVATAR_W = 10;
 var AVATAR_H = 18;
+//number of avatars in the sheets
+var AVATARS = 37;
+//the big file if used
+var ALL_AVATARS_SHEET = "allAvatars.png";
+//the number of frames for walk cycle and emote animation
+//the first frame of emote is also the idle frame
+var WALK_F = 4;
+var EMOTE_F = 2;
 
 //the socket connection
 var socket;
+//sent by the server
+var ROOMS;
+var SETTINGS;
 
 //avatar linear speed, pixels per milliseconds
 var SPEED = 50;
 
-//prevent from spamming messages, enforced by the server too 
-var ANTI_SPAM = 1000;
+var ASSETS_FOLDER = "assets/";
 
 //text vars
 //MONOSPACED FONT
@@ -54,9 +79,6 @@ var TEXT_LEADING = TEXT_H + 4;
 
 var LOGO_FILE = "logo.png";
 var MENU_BG_FILE = "menu_white.png";
-
-//shows up at first non lurking login
-var INTRO_TEXT = "Click/tap to move";
 
 //how long does the text bubble stay
 var BUBBLE_TIME = 8;
@@ -72,6 +94,7 @@ var PAGE_COLOR = "#000000";
 //sprite reference color for palette swap
 //hair, skin, shirt, pants
 var REF_COLORS = ['#413830', '#c0692a', '#ff004d', '#29adff'];
+//the palettes that will respectively replace the colors above
 var AVATAR_PALETTES = [
     ['#ffa300', '#e27c32', '#a8e72e', '#00b543'],
     ['#a8e72e', '#e27c32', '#111d35', '#8f3f17'],
@@ -96,26 +119,23 @@ var AVATAR_PALETTES = [
     ['#742f29', '#ffccaa', '#a8e72e', '#413830']
 
 ];
-//containers to speed up the re coloring
+//arrays to speed up the pix by pix recoloring
 var REF_COLORS_RGB = [];
 var AVATAR_PALETTES_RGB = [];
 
+//GUI
 var LABEL_NEUTRAL_COLOR = "#FFFFFF";
 var UI_BG = "#000000";
 
-//number of avatars
-var AVATARS = 37;
-
-/////////////////////////////////
-//global vars///////////////////
+//global vars! I love global vars ///////////////////
 
 //preloaded images
 var walkSheets = [];
 var emoteSheets = [];
-//image
+//the big spritesheet
 var allSheets;
 
-//current bg and areas
+//current room bg and areas
 var bg;
 var areas;
 
@@ -127,7 +147,7 @@ var areaLabel;
 var labelColor;
 var rolledSprite;
 
-//UI
+//GUI
 //shows up at the beginning, centered, overlapped to room in lurk mode
 var logo;
 var logoCounter;
@@ -136,8 +156,9 @@ var logoCounter;
 var walkIcon;
 
 var menuBg, arrowButton;
+//p5 play group, basically an arraylist of sprites
 var menuGroup;
-//animation
+//p5 play animation
 var avatarPreview;
 
 //long text variables, message that shows on my client only (written text, narration, god messages...)
@@ -158,31 +179,57 @@ var bubbles = [];
 //for admins it contains the password so it shouldn't be shared
 var nickName = "";
 
-//these are indexes of arrays
+//these are indexes of arrays not images or colors
 var currentAvatar;
 var currentColor;
 
-//this object keeps track of all the current players, coordinates, bodies and color
+//this object keeps track of all the current players in the room, coordinates, bodies and color
 var players;
-//a reference to this particular player
+//a reference to my player
 var me;
 //the canvas object
 var canvas;
 //draw loop state: user(name), avatar selection or game
 var screen;
 
-//set the time at the beginning of the time, the SEVENTIES
+//set the time at the beginning of the computing era, the SEVENTIES!
 var lastMessage = 0;
 
-//sparkles
+//sparkles p5 play animations
 var appearEffect, disappearEffect;
 
+//sounds
 var blips;
 var appearSound, disappearSound;
 
 //if the server restarts the clients reconnects seamlessly
-//don't do first log things
+//don't do first log kind of things
 var firstLog = true;
+
+//async check
+var dataLoaded = false;
+var gameStarted = false;
+
+
+/*
+Things are quite asynchronous here. This is the startup sequence:
+
+* preload() preload general assets - avatars, icons etc
+* setup() assets loaded - slice, create canvas and create a temporary socket that only listens to DATA
+* wait for settings and room data from the server 
+* data is received, ROOM object exists BUT its damn images aren't loaded yet
+* check the loading images in draw() until they all look like something
+* when room images are loaded go to setupGame() and to lurking mode or fast track with a random username due to QUICK_LOGIN
+    In lurking mode (username "") you can see everybody, you are invisible and can't do anything
+    BUT you are technically in the room
+* when click on the "join" button go to the username and avatar selection screens, back and forth for name validation
+* when name is approved the player joins ("playerJoined" event) the room again with the real name and avatar
+* upon room join all clients send their intro information and the scene is populated
+* changing room is handled in the same way with "playerJoined"
+* if server restarts the assets and room data is kept on the clients and that's also a connect > playerJoined sequence
+*/
+
+
 
 //setup is called when all the assets have been loaded
 function preload() {
@@ -192,8 +239,8 @@ function preload() {
     //avatar spritesheets are programmatically tinted so they need to be pimages before being loaded as spritesheets
 
     //METHOD 1:
-    //avatar spritesheets are numbered and sequential, one per animation as exported from Piskel
-    //it's a lot of requests for tiny images
+    //avatar spritesheets are numbered and sequential, one per animation like straight outta Piskel
+    //it's a lot of requests for a bunch of tiny images
     /*
     for (var i = 0; i < AVATARS; i++) {
         walkSheets[i] = loadImage(ASSETS_FOLDER + "character" + i + ".png");
@@ -209,31 +256,8 @@ function preload() {
     //packed with this tool  https://www.codeandweb.com/free-sprite-sheet-packer
     //layout horizontal, 0 padding (double check that)
 
-    allSheets = loadImage(ASSETS_FOLDER + "allAvatars.png");
 
-    //preload images
-    for (var roomId in ROOMS) {
-        if (ROOMS.hasOwnProperty(roomId)) {
-            var room = ROOMS[roomId];
-
-            if (room.bg != null)
-                room.bgGraphics = loadImage(ASSETS_FOLDER + room.bg);
-            else
-                console.log("WARNING: room " + roomId + " has no background graphics");
-
-            if (room.area != null)
-                room.areaGraphics = loadImage(ASSETS_FOLDER + room.area);
-            else
-                console.log("WARNING: room " + roomId + " has no area graphics");
-
-            //preload sprites if any
-            if (ROOMS[roomId].sprites != null)
-                for (var i = 0; i < ROOMS[roomId].sprites.length; i++) {
-                    var spr = ROOMS[roomId].sprites[i];
-                    spr.spriteGraphics = loadImage(ASSETS_FOLDER + spr.file);
-                }
-        }
-    }
+    allSheets = loadImage(ASSETS_FOLDER + ALL_AVATARS_SHEET);
 
     REF_COLORS_RGB = [];
     //to make the palette swap faster I save colors as arrays 
@@ -246,7 +270,6 @@ function preload() {
     }
 
     AVATAR_PALETTES_RGB = [];
-
     //to make the palette swap faster I save colors as arrays 
     for (var i = 0; i < AVATAR_PALETTES.length; i++) {
 
@@ -285,6 +308,8 @@ function preload() {
     disappearEffect.looping = false;
 
     font = loadFont(FONT_FILE);
+
+    //load sound
     soundFormats('mp3', 'ogg');
 
     blips = [];
@@ -306,25 +331,33 @@ function preload() {
 
 }
 
+
+//this is called when the assets are loaded
 function setup() {
 
+    //create a canvas
+    canvas = createCanvas(WIDTH, HEIGHT);
+    //accept only the clicks on the canvas (not the ones on the UI)
+    canvas.mousePressed(canvasPressed);
+    canvas.mouseReleased(canvasReleased);
+    canvas.mouseOut(outOfCanvas);
+    //by default the canvas is attached to the bottom, i want it in the container
+    canvas.parent('canvas-container');
+
+    //adapt it to the browser window 
+    scaleCanvas();
+
+    //since my avatars are pixelated and scaled I kill the antialiasing on canvas
+    noSmooth();
+
+    //the page link below
+    showInfo();
+
+    //if using a single spritesheet slice it up
     if (walkSheets.length == 0 && allSheets != null) {
-        print("slice spritesheet");
-        /*
-                var c = color(colorString);
-                let pg = createGraphics(img.width, img.height);
-                pg.noSmooth();
-                pg.tint(red(c), green(c), blue(c), 255);
-                pg.image(img, 0, 0, img.width, img.height);
-                //i need to convert it back to image in order to use it as spritesheet
-                var img = createImage(pg.width, pg.height);
-                img.copy(pg, 0, 0, pg.width, pg.height, 0, 0, pg.width, pg.height);
-        
-                return img;
-        */
+
         var sliceX = 0;
-        var WALK_F = 4;
-        var EMOTE_F = 2;
+
 
         for (var i = 0; i < AVATARS; i++) {
 
@@ -340,12 +373,106 @@ function setup() {
 
             sliceX += AVATAR_W * EMOTE_F;
 
-            //copy(srcImage, sx, sy, sw, sh, dx, dy, dw, dh)
-
-            //walkSheets[i] = loadImage(ASSETS_FOLDER + "character" + i + ".png");
         }
     }
 
+    //I create a socket but I wait to assign all the functions before opening a connection
+    socket = io({
+        autoConnect: false
+    });
+
+    //server sends out the response to the name submission, only if lurk mode is disabled
+    //it's in a separate function because it is shared between the first provisional connection 
+    //and the "real" one later
+    socket.on('nameValidation', nameValidationCallBack);
+
+    //first server message with version and game data
+    socket.on('serverWelcome',
+        function (serverVersion, DATA) {
+            if (socket.id) {
+                console.log("Welcome! Server version: " + serverVersion + " - client version " + VERSION);
+                if (serverVersion != VERSION) {
+                    console.log("VERSION MISMATCH: FORCE RELOAD");
+                    location.reload(true);
+                }
+
+                ROOMS = DATA.ROOMS;
+                SETTINGS = DATA.SETTINGS;
+
+                //load room assets, should be in preload but
+                for (var roomId in ROOMS) {
+                    if (ROOMS.hasOwnProperty(roomId)) {
+                        var room = ROOMS[roomId];
+
+                        if (room.bg != null)
+                            room.bgGraphics = loadImage(ASSETS_FOLDER + room.bg);
+                        else
+                            console.log("WARNING: room " + roomId + " has no background graphics");
+
+                        if (room.area != null)
+                            room.areaGraphics = loadImage(ASSETS_FOLDER + room.area);
+                        else
+                            console.log("WARNING: room " + roomId + " has no area graphics");
+
+                        //preload sprites if any
+                        if (ROOMS[roomId].sprites != null)
+                            for (var i = 0; i < ROOMS[roomId].sprites.length; i++) {
+                                var spr = ROOMS[roomId].sprites[i];
+                                spr.spriteGraphics = loadImage(ASSETS_FOLDER + spr.file);
+                            }
+                    }
+                }
+
+                print(">>> DATA RECEIVED " + (DATA.ROOMS != null));
+            }
+        }
+    );
+
+    //I can now open it
+    socket.open();
+}
+
+
+function draw() {
+
+    //this is like a second janky preload: I'm waiting for data from the server and for the images linked within it to load
+    if (!dataLoaded && ROOMS != null) {
+        //loaded except when it's NOT
+        dataLoaded = true;
+
+        //load room assets, should be in preload but
+        for (var roomId in ROOMS) {
+            var room = ROOMS[roomId];
+
+            if (room.bgGraphics != null)
+                if (room.bgGraphics.width == 1)
+                    dataLoaded = false;
+
+            if (room.areaGraphics != null)
+                if (room.areaGraphics.width == 1)
+                    dataLoaded = false;
+        }
+
+        if (dataLoaded)
+            print("Room data and assets loaded");
+    }
+
+    if (dataLoaded && !gameStarted) {
+        setupGame();
+    }
+
+    //this is the actual game loop
+    if (gameStarted) {
+        update();
+    }
+}
+
+//called once upon data and image load
+function setupGame() {
+
+    gameStarted = true;
+
+    //starting from default or from location on the url?
     if (ROOM_LINK) {
         //url parameters can pass the room so a room can be linked
         const urlParams = new URLSearchParams(window.location.search);
@@ -353,24 +480,10 @@ function setup() {
 
         if (urlRoom != null) {
             if (ROOMS[urlRoom] != null)
-                defaultRoom = urlRoom;
+                SETTINGS.defaultRoom = urlRoom;
         }
     }
 
-
-    //create a canvas
-    canvas = createCanvas(WIDTH, HEIGHT);
-    //accept only the clicks on the canvas (not the ones on the UI)
-    canvas.mousePressed(canvasPressed);
-    canvas.mouseReleased(canvasReleased);
-    //by default the canvas is attached to the bottom, i want a 
-    canvas.parent('canvas-container');
-    canvas.mouseOut(outOfCanvas);
-
-    scaleCanvas();
-
-    //since my avatars are pixelated and scaled I kill the antialiasing on canvas
-    noSmooth();
 
     if (QUICK_LOGIN) {
         //assign random name and avatar and get to the game
@@ -379,6 +492,17 @@ function setup() {
         currentAvatar = floor(random(0, walkSheets.length));
         newGame();
     }
+    else if (!LURK_MODE) {
+
+        //paint background
+        image(menuBg, 0, 0, WIDTH, HEIGHT);
+        hideJoin();
+        showUser();
+
+        var field = document.getElementById("lobby-field");
+        field.focus();
+
+    }
     else {
         //nickname blank means invisible - lurk mode
         nickName = "";
@@ -386,127 +510,12 @@ function setup() {
         currentAvatar = floor(random(0, walkSheets.length));
         newGame();
     }
-
-    showInfo();
-}
-
-function windowResized() {
-    scaleCanvas();
-    print("CANVAS RESIZE");
-}
-
-
-function scaleCanvas() {
-    //landscape scale to height
-    if (windowWidth > windowHeight) {
-        canvasScale = windowHeight / WIDTH; //scale to W because I want to leave room for chat and instructions (squareish)
-        canvas.style("width", WIDTH * canvasScale + "px");
-        canvas.style("height", HEIGHT * canvasScale + "px");
-    }
-    else {
-        canvasScale = windowWidth / WIDTH;
-        canvas.style("width", WIDTH * canvasScale + "px");
-        canvas.style("height", HEIGHT * canvasScale + "px");
-    }
-
-    var container = document.getElementById("canvas-container");
-    container.setAttribute("style", "width:" + WIDTH * canvasScale + "px; height: " + HEIGHT * canvasScale + "px");
-
-    var form = document.getElementById("interface");
-    form.setAttribute("style", "width:" + WIDTH * canvasScale + "px;");
-
-}
-
-//I could do this in DOM (regular html and javascript elements) 
-//but I want to show a canvas with html overlay
-function avatarSelection() {
-    menuGroup = new Group();
-    screen = "avatar";
-
-    //buttons
-    var previousBody, nextBody, previousColor, nextColor;
-
-    var ss = loadSpriteSheet(arrowButton, 28, 28, 3);
-    var animation = loadAnimation(ss);
-
-    //the position is the bottom left
-    previousBody = createSprite(8 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
-    previousBody.addAnimation("default", animation);
-    previousBody.animation.stop();
-    previousBody.mirrorX(-1);
-    menuGroup.add(previousBody);
-
-    nextBody = createSprite(24 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
-    nextBody.addAnimation("default", animation);
-    nextBody.animation.stop();
-    menuGroup.add(nextBody);
-
-    previousColor = createSprite(90 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
-    previousColor.addAnimation("default", animation);
-    previousColor.animation.stop();
-    previousColor.mirrorX(-1);
-    menuGroup.add(previousColor);
-
-    nextColor = createSprite(106 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
-    nextColor.addAnimation("default", animation);
-    nextColor.animation.stop();
-    menuGroup.add(nextColor);
-
-    previousBody.onMouseOver = nextBody.onMouseOver = previousColor.onMouseOver = nextColor.onMouseOver = function () {
-        this.animation.changeFrame(1);
-    }
-    previousBody.onMouseOut = nextBody.onMouseOut = previousColor.onMouseOut = nextColor.onMouseOut = function () {
-        this.animation.changeFrame(0);
-    }
-
-    previousBody.onMousePressed = nextBody.onMousePressed = previousColor.onMousePressed = nextColor.onMousePressed = function () {
-        this.animation.changeFrame(2);
-    }
-
-    previousBody.onMouseReleased = function () {
-        currentAvatar -= 1;
-        if (currentAvatar < 0)
-            currentAvatar = AVATARS - 1;
-
-        previewAvatar();
-        this.animation.changeFrame(1);
-    }
-
-    nextBody.onMouseReleased = function () {
-        currentAvatar += 1;
-        if (currentAvatar >= AVATARS)
-            currentAvatar = 0;
-
-        previewAvatar();
-        this.animation.changeFrame(1);
-    }
-
-    previousColor.onMouseReleased = function () {
-        currentColor -= 1;
-        if (currentColor < 0)
-            currentColor = AVATAR_PALETTES.length - 1;
-
-        previewAvatar();
-        this.animation.changeFrame(1);
-    }
-
-    nextColor.onMouseReleased = function () {
-        currentColor += 1;
-        if (currentColor >= AVATAR_PALETTES.length)
-            currentColor = 0;
-
-        previewAvatar();
-        this.animation.changeFrame(1);
-    }
-
-    //nextBody.onMouseReleased = previousColor.onMouseReleased = nextColor.onMouseReleased = function () {
-
-    randomAvatar();
 }
 
 
 
 function newGame() {
+
     screen = "game";
     nextCommand = null;
     areaLabel = "";
@@ -526,12 +535,19 @@ function newGame() {
         showChat();
     }
 
-    //if new game is called from lurker mode disconnect the previous socket to avoid ghosts
+    //this is not super elegant but I create another socket for the actual game
+    //because I've got the data from the server and I don't want to reinitiate everything 
+    //if the server restarts
     if (socket != null) {
-        console.log("Lurker joins " + socket.id);
+        //console.log("Lurker joins " + socket.id);
         socket.disconnect();
+        socket = null;
     }
 
+    //I create a socket but I wait to assign all the functions before opening a connection
+    socket = io({
+        autoConnect: false
+    });
 
     //paint background
     background(UI_BG);
@@ -539,10 +555,6 @@ function newGame() {
     //initialize players as object
     players = {};
 
-    //I create socket but I wait to assign all the functions before opening a connection
-    socket = io({
-        autoConnect: false
-    });
 
     //all functions are in a try/catch to prevent a hacked client from sending garbage that crashes other clients 
 
@@ -561,27 +573,24 @@ function newGame() {
 
             bubbles = [];
 
-
             //first time
             if (me == null) {
                 //join offscreen if missing parameters?
                 var sx = -100;
                 var sy = -100;
 
-                if (ROOMS[defaultRoom].spawn == null) {
-                    console.log("WARNING: " + defaultRoom + " has no spawn area");
+                if (ROOMS[SETTINGS.defaultRoom].spawn == null) {
+                    console.log("WARNING: " + SETTINGS.defaultRoom + " has no spawn area");
                 }
                 else {
-                    spawnZone = ROOMS[defaultRoom].spawn;
+                    spawnZone = ROOMS[SETTINGS.defaultRoom].spawn;
                     //randomize position if it's the first time
                     var sx = round(random(spawnZone[0] * ASSET_SCALE, spawnZone[2] * ASSET_SCALE));
                     var sy = round(random(spawnZone[1] * ASSET_SCALE, spawnZone[3] * ASSET_SCALE));
                 }
 
-
-
                 //send the server my name and avatar
-                socket.emit('join', { nickName: nickName, color: currentColor, avatar: currentAvatar, room: defaultRoom, x: sx, y: sy });
+                socket.emit('join', { nickName: nickName, color: currentColor, avatar: currentAvatar, room: SETTINGS.defaultRoom, x: sx, y: sy });
             }
             else {
                 socket.emit('join', { nickName: nickName, color: currentColor, avatar: currentAvatar, room: me.room, x: me.x, y: me.y });
@@ -591,13 +600,14 @@ function newGame() {
             console.error(e);
         }
 
-    });
+    });//end connect
+
 
     //when somebody joins the game create a new player
     socket.on('playerJoined',
         function (p) {
             try {
-                console.log("new player in the room " + p.room + " " + p.id + " " + p.x + " " + p.y + " color " + p.color);
+                //console.log("new player in the room " + p.room + " " + p.id + " " + p.x + " " + p.y + " color " + p.color);
 
                 //stop moving
                 p.destinationX = p.x;
@@ -622,6 +632,7 @@ function newGame() {
                     me.sprite.onMouseOver = function () { };
                     me.sprite.onMouseOut = function () { };
                     */
+
                     //click on me = emote
                     me.sprite.onMousePressed = function () { socket.emit('emote', { room: me.room, em: true }); };
                     me.sprite.onMouseReleased = function () { socket.emit('emote', { room: me.room, em: false }); };
@@ -733,13 +744,13 @@ function newGame() {
                 if (p.new && p.nickName != "" && firstLog) {
                     var spark = createSprite(p.x, p.y - AVATAR_H + 1);
                     spark.addAnimation("spark", appearEffect);
-                    spark.scale = 2;
+                    spark.scale = ASSET_SCALE;
                     spark.life = 60;
                     if (SOUND)
                         appearSound.play();
 
                     if (p.id == me.id) {
-                        longText = INTRO_TEXT;
+                        longText = SETTINGS.INTRO_TEXT;
                         longTextLines = 1;
                         longTextAlign = "center";//or center
                     }
@@ -761,7 +772,6 @@ function newGame() {
     socket.on('onIntro',
         function (p) {
             try {
-
                 //console.log("Hello newcomer I'm " + p.nickName + " " + p.id);
                 players[p.id] = new Player(p);
                 console.log("There are now " + Object.keys(players).length + " players in this room");
@@ -777,12 +787,11 @@ function newGame() {
     socket.on('playerMoved',
         function (p) {
             try {
-                console.log(p.id + " moves to: " + p.destinationX + " " + p.destinationY);
+                //console.log(p.id + " moves to: " + p.destinationX + " " + p.destinationY);
 
                 //make sure the player exists
                 if (players.hasOwnProperty(p.id)) {
-                    //players[p.id].x = p.x;
-                    //players[p.id].y = p.y;
+
                     players[p.id].destinationX = p.destinationX;
                     players[p.id].destinationY = p.destinationY;
                 }
@@ -803,7 +812,7 @@ function newGame() {
                     if (p.disconnect && players[p.id].nickName != "") {
                         var spark = createSprite(players[p.id].x, players[p.id].y - AVATAR_H + 1);
                         spark.addAnimation("spark", disappearEffect);
-                        spark.scale = 2;
+                        spark.scale = ASSET_SCALE;
                         spark.life = 60;
                         if (SOUND)
                             disappearSound.play();
@@ -836,8 +845,8 @@ function newGame() {
     socket.on('playerTalked',
         function (p) {
             try {
-                console.log("new message from " + p.id + ": " + p.message + " color " + p.color);
-                var playerId = p.id;
+                //console.log("new message from " + p.id + ": " + p.message + " color " + p.color);
+
                 //make sure the player exists in the client
                 if (players.hasOwnProperty(p.id)) {
 
@@ -859,14 +868,7 @@ function newGame() {
         }
     );
 
-    //when a server message arrives
-    socket.on('serverMessage',
-        function (msg) {
-            if (socket.id) {
-                console.log("Message from server: " + msg);
-            }
-        }
-    );
+
 
     //displays a message upon connection refusal (server full etc)
     //this is an end state and requires a refresh or a join
@@ -927,26 +929,10 @@ function newGame() {
         });
 
 
-    //when a server message arrives
-    socket.on('nameValidation',
-        function (code) {
-            if (socket.id) {
-                if (code == 0) {
-                    console.log("Username already taken");
-                    var e = document.getElementById("lobby-error");
-
-                    if (e != null)
-                        e.innerHTML = "Username already taken";
-                }
-                else {
-                    console.log("Welcome " + nickName);
-                    hideUser();
-                    showAvatar();
-                    avatarSelection();
-                }
-            }
-        }
-    );
+    //server sends out the response to the name submission, only if lurk mode is enabled
+    //it's in a separate function because it is shared between the first provisional connection 
+    //and the "real" one later
+    socket.on('nameValidation', nameValidationCallBack);
 
 
     //when a server message arrives
@@ -982,6 +968,8 @@ function newGame() {
         location.reload(true);
     });
 
+    //I can now open it
+
     socket.open();
 
 }
@@ -989,8 +977,7 @@ function newGame() {
 
 
 //this p5 function is called continuously 60 times per second by default
-function draw() {
-
+function update() {
 
     if (screen == "user") {
         image(menuBg, 0, 0, WIDTH, HEIGHT);
@@ -1229,7 +1216,7 @@ function draw() {
             label = "";
 
         //player and sprites label override areas
-        if (rolledSprite != null && rolledSprite != me.sprite) {
+        if (rolledSprite != null) {
             if (rolledSprite.label != null && rolledSprite.label != "") {
                 label = rolledSprite.label + ((rolledSprite.transparent) ? "[AFK]" : "");
             }
@@ -1238,6 +1225,11 @@ function draw() {
                 labelColor = rolledSprite.labelColor;
             }
         }
+
+        //by no circumstance show you name as label
+        if (me != null)
+            if (label == me.nickName)
+                label = "";
 
         //draw rollover label
         if (label != "" && longText == "") {
@@ -1318,6 +1310,122 @@ function draw() {
 
 
 }
+
+
+
+function windowResized() {
+    scaleCanvas();
+}
+
+
+function scaleCanvas() {
+    //landscape scale to height
+    if (windowWidth > windowHeight) {
+        canvasScale = windowHeight / WIDTH; //scale to W because I want to leave room for chat and instructions (squareish)
+        canvas.style("width", WIDTH * canvasScale + "px");
+        canvas.style("height", HEIGHT * canvasScale + "px");
+    }
+    else {
+        canvasScale = windowWidth / WIDTH;
+        canvas.style("width", WIDTH * canvasScale + "px");
+        canvas.style("height", HEIGHT * canvasScale + "px");
+    }
+
+    var container = document.getElementById("canvas-container");
+    container.setAttribute("style", "width:" + WIDTH * canvasScale + "px; height: " + HEIGHT * canvasScale + "px");
+
+    var form = document.getElementById("interface");
+    form.setAttribute("style", "width:" + WIDTH * canvasScale + "px;");
+
+}
+
+//I could do this in DOM (regular html and javascript elements) 
+//but I want to show a canvas with html overlay
+function avatarSelection() {
+    menuGroup = new Group();
+    screen = "avatar";
+
+    //buttons
+    var previousBody, nextBody, previousColor, nextColor;
+
+    var ss = loadSpriteSheet(arrowButton, 28, 28, 3);
+    var animation = loadAnimation(ss);
+
+    //the position is the bottom left
+    previousBody = createSprite(8 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
+    previousBody.addAnimation("default", animation);
+    previousBody.animation.stop();
+    previousBody.mirrorX(-1);
+    menuGroup.add(previousBody);
+
+    nextBody = createSprite(24 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
+    nextBody.addAnimation("default", animation);
+    nextBody.animation.stop();
+    menuGroup.add(nextBody);
+
+    previousColor = createSprite(90 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
+    previousColor.addAnimation("default", animation);
+    previousColor.animation.stop();
+    previousColor.mirrorX(-1);
+    menuGroup.add(previousColor);
+
+    nextColor = createSprite(106 * ASSET_SCALE + 14, 50 * ASSET_SCALE + 14);
+    nextColor.addAnimation("default", animation);
+    nextColor.animation.stop();
+    menuGroup.add(nextColor);
+
+    previousBody.onMouseOver = nextBody.onMouseOver = previousColor.onMouseOver = nextColor.onMouseOver = function () {
+        this.animation.changeFrame(1);
+    }
+    previousBody.onMouseOut = nextBody.onMouseOut = previousColor.onMouseOut = nextColor.onMouseOut = function () {
+        this.animation.changeFrame(0);
+    }
+
+    previousBody.onMousePressed = nextBody.onMousePressed = previousColor.onMousePressed = nextColor.onMousePressed = function () {
+        this.animation.changeFrame(2);
+    }
+
+    previousBody.onMouseReleased = function () {
+        currentAvatar -= 1;
+        if (currentAvatar < 0)
+            currentAvatar = AVATARS - 1;
+
+        previewAvatar();
+        this.animation.changeFrame(1);
+    }
+
+    nextBody.onMouseReleased = function () {
+        currentAvatar += 1;
+        if (currentAvatar >= AVATARS)
+            currentAvatar = 0;
+
+        previewAvatar();
+        this.animation.changeFrame(1);
+    }
+
+    previousColor.onMouseReleased = function () {
+        currentColor -= 1;
+        if (currentColor < 0)
+            currentColor = AVATAR_PALETTES.length - 1;
+
+        previewAvatar();
+        this.animation.changeFrame(1);
+    }
+
+    nextColor.onMouseReleased = function () {
+        currentColor += 1;
+        if (currentColor >= AVATAR_PALETTES.length)
+            currentColor = 0;
+
+        previewAvatar();
+        this.animation.changeFrame(1);
+    }
+
+    //nextBody.onMouseReleased = previousColor.onMouseReleased = nextColor.onMouseReleased = function () {
+
+    randomAvatar();
+}
+
 
 
 //copy the properties
@@ -1619,7 +1727,7 @@ function canvasReleased() {
     }
     else if (nickName != "" && screen == "game" && mouseButton == LEFT) {
         //exit text
-        if (longText != "" && longText != INTRO_TEXT) {
+        if (longText != "" && longText != SETTINGS.INTRO_TEXT) {
 
             if (longTextLink != "")
                 window.open(longTextLink, '_blank');
@@ -1667,7 +1775,7 @@ function canvasReleased() {
                 else if (c[0] == 255 && c[1] == 255 && c[2] == 255) {
                     //if white, generic walk stop command
                     nextCommand = null;
-                    console.log("walk to " + mouseX + ", " + mouseY);
+
                     socket.emit('move', { x: me.x, y: me.y, room: me.room, destinationX: mouseX, destinationY: mouseY });
                 }
                 else {
@@ -1740,7 +1848,8 @@ function getCommand(c, roomId) {
 
 function executeCommand(c) {
     areaLabel = "";
-    print("Executing command " + c.cmd);
+    //print("Executing command " + c.cmd);
+
     switch (c.cmd) {
         case "enter":
             var sx, sy;
@@ -1853,7 +1962,7 @@ function getTalkInput() {
 
     var time = new Date().getTime();
 
-    if (time - lastMessage > ANTI_SPAM) {
+    if (time - lastMessage > SETTINGS.ANTI_SPAM) {
 
         // Selecting the input element and get its value 
         var inputVal = document.getElementById("chatField").value;
@@ -1884,7 +1993,31 @@ function nameOk() {
     }
 }
 
+function nameValidationCallBack(code) {
+    if (socket.id) {
 
+        if (code == 0) {
+            console.log("Username already taken");
+            var e = document.getElementById("lobby-error");
+
+            if (e != null)
+                e.innerHTML = "Username already taken";
+        }
+        else if (code == 3) {
+
+            var e = document.getElementById("lobby-error");
+
+            if (e != null)
+                e.innerHTML = "Sorry, only standard western characters are allowed";
+        }
+        else {
+
+            hideUser();
+            showAvatar();
+            avatarSelection();
+        }
+    }
+}
 
 //draws a random avatar body in the center of the canvas
 //colors it a random color

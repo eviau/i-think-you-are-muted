@@ -1,14 +1,23 @@
 //check README.md
 
+//load secret config vars
 require('dotenv').config();
+const DATA = require('./data');
 
 /*
 ADMINS=username1|pass1,username2|pass2
 PORT = 3000
 */
 
-
 var port = process.env.PORT || 3000;
+
+/*
+The client and server version strings MUST be the same!
+They can be used to force clients to hard refresh to load the latest client.
+If the server gets updated it can be restarted, but if there are active clients (users' open browsers) they could be outdated and create issues.
+If the VERSION vars are mismatched they will send all clients in an infinite refresh loop. Make sure you update sketch.js before restarting server.js
+*/
+var VERSION = "1.0";
 
 //create a web application that uses the express frameworks and socket.io to communicate via http (the web protocol)
 var express = require('express');
@@ -17,9 +26,7 @@ var http = require('http').createServer(app);
 var io = require('socket.io')(http);
 var Filter = require('bad-words');
 
-//minimum time between talk messages
-//enforced by server
-var ANTI_SPAM = 1000;
+
 //time before disconnecting (forgot the tab open?)
 var ACTIVITY_TIMEOUT = 10 * 60 * 1000;
 //should be the same as index maxlength="16"
@@ -57,13 +64,44 @@ var gameState = {
 //not permanent, it lasts until the server restarts
 var banned = [];
 
+//number of emits per second allowed to each player after that, ban
+var PACKETS_PER_SECONDS = 10;
+
+
 //when a client connects serve the static files in the public directory ie public/index.html
 app.use(express.static('public'));
 
 //when a client connects the socket is established and I set up all the functions listening for events
 io.on('connection', function (socket) {
+
+
+    //this bit (middleware?) catches all incoming packets
+    //I use to make my own lil rate limiter without unleashing 344525 dependencies
+    //a rate limiter prevents malicious flooding from a hacked client
+    socket.use((packet, next) => {
+        if (gameState.players[socket.id] != null) {
+            var p = gameState.players[socket.id];
+            p.floodCount++;
+            if (p.floodCount > PACKETS_PER_SECONDS) {
+                console.log(socket.id + " is flooding! BAN BAN BAN");
+
+                if (p.IP != "") {
+                    banned.push(p.IP);
+                    socket.emit("errorMessage", "Flooding attempt! You are banned");
+                    socket.disconnect();
+                }
+
+            }
+        }
+        next();
+    });
+
+
     //this appears in the terminal
     console.log('A user connected');
+
+    //this is sent to the client upon connection
+    socket.emit('serverWelcome', VERSION, DATA);
 
     //wait for the player to send their name and info, then broadcast them
     socket.on('join', function (playerInfo) {
@@ -137,7 +175,7 @@ io.on('connection', function (socket) {
                 if (playerInfo.nickName != "")
                     val = validateName(playerInfo.nickName);
 
-                if (val == 0) {
+                if (val == 0 || val == 3) {
                     console.log("ATTENTION: " + socket.id + " tried to bypass username validation");
                 }
                 else {
@@ -162,14 +200,12 @@ io.on('connection', function (socket) {
                     gameState.players[socket.id].lastActivity = new Date().getTime();
                     gameState.players[socket.id].muted = false;
                     gameState.players[socket.id].IP = IP;
+                    gameState.players[socket.id].floodCount = 0;
 
                     //send the user to the default room
                     socket.join(playerInfo.room, function () {
                         //console.log(socket.rooms);
                     });
-
-                    //this is sent to the client upon connection
-                    socket.emit('serverMessage', 'Hello welcome!');
 
                     newPlayer.new = true;
 
@@ -219,7 +255,6 @@ io.on('connection', function (socket) {
                 console.log("ATTENTION: Illegitimate intro from " + socket.id);
             }
         }
-
     });
 
 
@@ -230,7 +265,7 @@ io.on('connection', function (socket) {
             var time = new Date().getTime();
 
             //block if spamming
-            if (time - gameState.players[socket.id].lastMessage > ANTI_SPAM && !gameState.players[socket.id].muted) {
+            if (time - gameState.players[socket.id].lastMessage > DATA.SETTINGS.ANTI_SPAM && !gameState.players[socket.id].muted) {
 
                 //Admin commands can be typed as messages
                 //is this an admin
@@ -240,6 +275,12 @@ io.on('connection', function (socket) {
                 }
                 else {
                     //normal talk stuff
+
+                    //aphostrophe
+                    obj.message = obj.message.replace("’", "'");
+
+                    //replace unmapped characters
+                    obj.message = obj.message.replace(/[^A-Za-z0-9_!$%*()@./#&+-|]*$/g, "");
 
                     //remove leading and trailing whitespaces
                     obj.message = obj.message.replace(/^\s+|\s+$/g, "");
@@ -324,6 +365,10 @@ io.on('connection', function (socket) {
         try {
             gameState.players[socket.id].lastActivity = new Date().getTime();
 
+            //verify both position and destination
+            var p = verifyPosition(obj.x, obj.y, obj.room);
+            var d = verifyPosition(obj.destinationX, obj.destinationY, obj.room);
+
             //broadcast the movement to everybody
             io.to(obj.room).emit('playerMoved', { id: socket.id, x: obj.x, y: obj.y, destinationX: obj.destinationX, destinationY: obj.destinationY });
 
@@ -336,7 +381,9 @@ io.on('connection', function (socket) {
     //when I receive a user name validate it
     socket.on('sendName', function (nn) {
         try {
+
             var res = validateName(nn);
+
             //send the code 0 no - 1 ok - 2 admin
             socket.emit('nameValidation', res);
         } catch (e) {
@@ -377,6 +424,18 @@ io.on('connection', function (socket) {
     });
 
 });
+
+
+//rate limiting - clears the flood count
+setInterval(function () {
+    for (var id in gameState.players) {
+        if (gameState.players.hasOwnProperty(id)) {
+            gameState.players[id].floodCount = 0;
+        }
+    }
+}, 1000);
+
+
 
 function validateName(nn) {
 
@@ -420,14 +479,26 @@ function validateName(nn) {
         console.log("There is already a player named " + nn);
     }
 
+    //i hate this double negative logic but I hate learning regex more
+    var res = nn.match(/^([a-zA-Z0-9 !@#$%&*(),._-]+)$/);
 
-    if (duplicate || reserved)
+    if (res == null)
+        return 3
+    else if (duplicate || reserved)
         return 0
     else if (admin)
         return 2
     else
         return 1
 
+}
+
+/*
+Clients won't send illegal coordinates but there's always that one guy that messes with the developers console
+to make his avatar float around because it's oh so hilarious. So I guess we'll have to verify the coordinates here as well
+*/
+function verifyPosition(x, y, room) {
+    //to do... noooode
 }
 
 //parse a potential admin command
