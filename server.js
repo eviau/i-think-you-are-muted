@@ -65,7 +65,7 @@ var gameState = {
 var banned = [];
 
 //number of emits per second allowed to each player after that, ban
-var PACKETS_PER_SECONDS = 10;
+var PACKETS_PER_SECONDS = 30;
 
 
 //when a client connects serve the static files in the public directory ie public/index.html
