@@ -4,12 +4,18 @@
 require('dotenv').config();
 const DATA = require('./data');
 
+//.env content
 /*
 ADMINS=username1|pass1,username2|pass2
 PORT = 3000
 */
 
 var port = process.env.PORT || 3000;
+
+//number of emits per second allowed for each player, after that ban the IP.
+//over 30 emits in this game means that the client is hacked and the flooding is malicious
+//if you change the game logic make sure this limit is still reasonable
+var PACKETS_PER_SECONDS = 30;
 
 /*
 The client and server version strings MUST be the same!
@@ -52,7 +58,9 @@ and it's never shared to other clients, unlike player.nickName
 
 admins can call admin commands from the chat like /kick nickName
 */
-var admins = process.env.ADMINS.split(",");
+var admins = [];
+if (process.env.ADMINS != null)
+    admins = process.env.ADMINS.split(",");
 
 //We want the server to keep track of the whole game state
 //in this case the game state are the attributes of each player
@@ -63,10 +71,6 @@ var gameState = {
 //a collection of banned IPs
 //not permanent, it lasts until the server restarts
 var banned = [];
-
-//number of emits per second allowed to each player after that, ban
-var PACKETS_PER_SECONDS = 30;
-
 
 //when a client connects serve the static files in the public directory ie public/index.html
 app.use(express.static('public'));
@@ -85,7 +89,9 @@ io.on('connection', function (socket) {
             if (p.floodCount > PACKETS_PER_SECONDS) {
                 console.log(socket.id + " is flooding! BAN BAN BAN");
 
+
                 if (p.IP != "") {
+                    //comment this if you don't want to ban the IP
                     banned.push(p.IP);
                     socket.emit("errorMessage", "Flooding attempt! You are banned");
                     socket.disconnect();
@@ -365,10 +371,6 @@ io.on('connection', function (socket) {
         try {
             gameState.players[socket.id].lastActivity = new Date().getTime();
 
-            //verify both position and destination
-            var p = verifyPosition(obj.x, obj.y, obj.room);
-            var d = verifyPosition(obj.destinationX, obj.destinationY, obj.room);
-
             //broadcast the movement to everybody
             io.to(obj.room).emit('playerMoved', { id: socket.id, x: obj.x, y: obj.y, destinationX: obj.destinationX, destinationY: obj.destinationY });
 
@@ -493,13 +495,6 @@ function validateName(nn) {
 
 }
 
-/*
-Clients won't send illegal coordinates but there's always that one guy that messes with the developers console
-to make his avatar float around because it's oh so hilarious. So I guess we'll have to verify the coordinates here as well
-*/
-function verifyPosition(x, y, room) {
-    //to do... noooode
-}
 
 //parse a potential admin command
 function adminCommand(adminSocket, str) {
