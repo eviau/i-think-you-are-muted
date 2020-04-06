@@ -10,6 +10,7 @@ ADMINS=username1|pass1,username2|pass2
 PORT = 3000
 */
 
+
 var port = process.env.PORT || 3000;
 
 //number of emits per second allowed for each player, after that ban the IP.

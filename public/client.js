@@ -393,7 +393,7 @@ function setup() {
                 console.log("Welcome! Server version: " + serverVersion + " - client version " + VERSION);
                 if (serverVersion != VERSION) {
                     console.log("VERSION MISMATCH: FORCE RELOAD");
-                    location.reload(true);
+                    //location.reload(true);
                 }
 
                 ROOMS = DATA.ROOMS;
@@ -568,8 +568,8 @@ function newGame() {
             players = {};
 
             //ayay: connection lost while setting up character, just force a refresh
-            if (screen == "avatar" || screen == "user")
-                location.reload();
+            //if (screen == "avatar" || screen == "user")
+            //    location.reload();
 
             bubbles = [];
 
@@ -1748,7 +1748,7 @@ function canvasReleased() {
     //print("CLICK " + mouseButton);
 
     if (screen == "error") {
-        location.reload();
+        //location.reload();
     }
     else if (nickName != "" && screen == "game" && mouseButton == RIGHT) {
         if (me.destinationX == me.x && me.destinationY == me.y)
