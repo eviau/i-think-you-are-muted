@@ -74,3 +74,43 @@ var banned = [];
 
 //when a client connects serve the static files in the public directory ie public/index.html
 app.use(express.static('public'));
+
+
+//when a client connects the socket is established and I set up all the functions listening for events
+io.on('connection', function (socket) {
+
+
+    //this bit (middleware?) catches all incoming packets
+    //I use to make my own lil rate limiter without unleashing 344525 dependencies
+    //a rate limiter prevents malicious flooding from a hacked client
+    socket.use((packet, next) => {
+        if (gameState.players[socket.id] != null) {
+            var p = gameState.players[socket.id];
+            p.floodCount++;
+            if (p.floodCount > PACKETS_PER_SECONDS) {
+                console.log(socket.id + " is flooding! BAN BAN BAN");
+
+
+                if (p.IP != "") {
+                    //comment this if you don't want to ban the IP
+                    banned.push(p.IP);
+                    socket.emit("errorMessage", "Flooding attempt! You are banned");
+                    socket.disconnect();
+                }
+
+            }
+        }
+        next();
+    });
+
+
+    //this appears in the terminal
+    console.log('A user connected');
+  });
+
+
+
+//listen to the port 3000 this powers the whole socket.io
+http.listen(port, function () {
+    console.log('listening on *:3000');
+});
