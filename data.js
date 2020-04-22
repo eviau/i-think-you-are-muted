@@ -54,7 +54,6 @@ module.exports.ROOMS = {
         //they can be animated, mouse reactive and trigger commands like the areas above
         sprites: [
             //sprite spreadsheets only 1 row ok?
-            { file: "top-cabinet.png", frames: 1, frameDelay: 1, position: [24, 89], label: "A time traveling game", command: { cmd: "text", txt: "THE LAST HUMAN TOUCH\nby Cephalopodunk, 2018\nWASD or Arrow keys to move.\nClick to play.", align: "left", lines: 4, url: "https://cephalopodunk.itch.io/the-last-human-touch", label: "A time traveling game", point: [33, 92] } }
         ]
     },
 
@@ -63,9 +62,8 @@ module.exports.ROOMS = {
         frames: 1,
         frameDelay: 30,
         avatarScale: 2,
-        pageBg: "#ab5236",
-        area: "entrance_areas.png",
-        tint: "#fdeac8",
+        pageBg: "#ff0141",
+        area: "entrance-areas.png",
         bubblesY: 44,
         spawn: [14, 84, 119, 92],
         areaColors: {
