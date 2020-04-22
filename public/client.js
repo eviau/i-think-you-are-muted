@@ -76,7 +76,7 @@ var TEXT_PADDING = 3;
 var TEXT_LEADING = TEXT_H + 4;
 
 var LOGO_FILE = "logo.png";
-var MENU_BG_FILE = "menu_white.png";
+var MENU_BG_FILE = "entrance.png";
 
 //how long does the text bubble stay
 var BUBBLE_TIME = 8;

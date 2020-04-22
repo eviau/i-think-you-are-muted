@@ -2,7 +2,7 @@
 //they are either related to the rooms or shared with the server 
 module.exports.SETTINGS = {
     //if not specified by the url where is the starting point
-    defaultRoom: "likelikeOutside",
+    defaultRoom: "entrance",
     //minimum time between talk messages enforced by both client and server
     ANTI_SPAM: 1000,
     //shows up at first non lurking login
@@ -41,7 +41,7 @@ module.exports.ROOMS = {
             //enterPoint: where to spawn in the next room
             //obstacle: is the area walkable
             hffec27: { cmd: "enter", room: "likelikeBackyard", label: "allons dehors!", point: [6, 88], enterPoint: [116, 69], obstacle: false },
-            h00e436: { cmd: "enter", room: "likelikeOutside", label: "de retour à la case départ...", point: [102, 98], enterPoint: [103, 84], obstacle: false },
+            h00e436: { cmd: "enter", room: "entrance", label: "de retour à la case départ...", point: [102, 98], enterPoint: [103, 84], obstacle: false },
             //text displays a text only on the client
             //txt: the text
             //align: center or left
@@ -57,18 +57,20 @@ module.exports.ROOMS = {
         ]
     },
 
-    likelikeOutside: {
+    entrance: {
         bg: "entrance.png",
         frames: 1,
         frameDelay: 30,
         avatarScale: 2,
         pageBg: "#ffffff",
-        area: "likelikeOutside-areas.png",
+        area: "entrance-areas.png",
         bubblesY: 44,
         spawn: [14, 84, 119, 92],
         areaColors: {
             //h will be replaced by #
-            hff77a8: { cmd: "enter", room: "likelike", lines: 2, txt:"Cliquez pour entrer", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: false },
+            hff77a8: { cmd: "enter", room: "likelike", lines: 2, txt:"Cliquez pour entrer", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: true },
+            h7778ff: { cmd: "enter", room: "likelike", lines: 2, txt:"Cliquez pour entrer", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: true },
+        
         }
     },
     likelikeBackyard: {
