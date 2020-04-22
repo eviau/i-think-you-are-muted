@@ -89,7 +89,7 @@ module.exports.ROOMS = {
     spawn: [14, 84, 119, 92],
     areaColors: {
       //h will be replaced by #
-      hb41c53: {
+      h41c53: {
         cmd: "txt",
         room: "likelike",
         lines: 2,
