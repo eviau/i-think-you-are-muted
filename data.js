@@ -6,7 +6,7 @@ module.exports.SETTINGS = {
     //minimum time between talk messages enforced by both client and server
     ANTI_SPAM: 1000,
     //shows up at first non lurking login
-    INTRO_TEXT: "Click/tap to move"
+    INTRO_TEXT: "Cliquez pour vous déplacer"
 };
 
 module.exports.ROOMS = {
@@ -40,14 +40,14 @@ module.exports.ROOMS = {
             //point: where to walk after click
             //enterPoint: where to spawn in the next room
             //obstacle: is the area walkable
-            hffec27: { cmd: "enter", room: "likelikeBackyard", label: "Backyard", point: [6, 88], enterPoint: [116, 69], obstacle: false },
-            h00e436: { cmd: "enter", room: "likelikeOutside", label: "Street", point: [102, 98], enterPoint: [103, 84], obstacle: false },
+            hffec27: { cmd: "enter", room: "likelikeBackyard", label: "allons dehors!", point: [6, 88], enterPoint: [116, 69], obstacle: false },
+            h00e436: { cmd: "enter", room: "likelikeOutside", label: "de retour à la case départ...", point: [102, 98], enterPoint: [103, 84], obstacle: false },
             //text displays a text only on the client
             //txt: the text
             //align: center or left
             //lines: manual number of lines, p5 doesn't understand line breaks
             //url: uptionally open a page on click
-            hff004d: { cmd: "text", txt: "OUR DAMNED MACHINE\nby Sophie Houlden, 2018\nClick on the frame to start.\nWASD or Arrow keys to move.", align: "left", lines: 4, url: "https://sophieh.itch.io/our-damned-machine", label: "A dystopian game", point: [34, 78], obstacle: true },
+            hff004d: { cmd: "text", txt: "Tiens donc, une boisson chaude !", align: "left", lines: 2, label: "Une théière", point: [34, 78], obstacle: true },
         },
         //array of sprites to create in the room
         //sprites are rendered according to depth sort so they can appear above the avatars unlike the background
@@ -70,7 +70,7 @@ module.exports.ROOMS = {
         spawn: [14, 84, 119, 92],
         areaColors: {
             //h will be replaced by #
-            hff77a8: { cmd: "enter", room: "likelike", label: "Enter LIKELIKE", point: [100, 84], enterPoint: [104, 98], obstacle: false },
+            hff77a8: { cmd: "enter", room: "likelike", lines: 2, txt:"Cliquez pour entrer", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: false },
         }
     },
     likelikeBackyard: {
@@ -85,7 +85,7 @@ module.exports.ROOMS = {
         spawn: [38, 63, 108, 83],
         areaColors: {
             //h will be replaced by #
-            hff77a8: { cmd: "enter", room: "likelike", label: "Enter LIKELIKE", point: [119, 69], enterPoint: [5, 88], obstacle: false },
+            hff77a8: { cmd: "enter", room: "likelike", label: "Retourner dans la première salle", point: [119, 69], enterPoint: [5, 88], obstacle: false },
         },
         sprites: [
             //spreadsheets only 1 row ok?
