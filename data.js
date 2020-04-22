@@ -62,14 +62,14 @@ module.exports.ROOMS = {
         frames: 3,
         frameDelay: 30,
         avatarScale: 2,
-        pageBg: "#ffffff",
+        pageBg: "#000000",
         area: "entrance-areas.png",
         bubblesY: 44,
         spawn: [14, 84, 119, 92],
         areaColors: {
             //h will be replaced by #
             hb41c53: { cmd: "enter", room: "likelike", lines: 2, txt:"Cliquez pour entrer", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: false },
-            h7778ff: { cmd: "enter", room: "likelike", lines: 2, txt:"Non, pas ici !", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: true },
+            hb41c53: { cmd: "enter", room: "likelike", lines: 2, txt:"Non, pas ici !", label: "Enfin: la fin de la journée!", point: [50, 10], enterPoint: [104, 98], obstacle: false },
         
         }
     },
