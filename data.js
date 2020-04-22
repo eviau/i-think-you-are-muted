@@ -48,11 +48,6 @@ module.exports.ROOMS = {
             //lines: manual number of lines, p5 doesn't understand line breaks
             //url: uptionally open a page on click
             hff004d: { cmd: "text", txt: "OUR DAMNED MACHINE\nby Sophie Houlden, 2018\nClick on the frame to start.\nWASD or Arrow keys to move.", align: "left", lines: 4, url: "https://sophieh.itch.io/our-damned-machine", label: "A dystopian game", point: [34, 78], obstacle: true },
-            hff77a8: { cmd: "text", txt: "CONTINENTAL DRIFT\nby Cecile Richard, 2019\nWASD or Arrow keys to move.\nClick to play.", align: "left", lines: 4, url: "https://haraiva.itch.io/continental-drift", label: "An intimate game", point: [64, 78], obstacle: true },
-            hffccaa: { cmd: "text", txt: "SPIRAL HOUSE\nby Withering Systems (Everest Pipkin and Loren Schmidt), 2018\nWASD or Arrow keys to move.\nClick to play.", align: "left", lines: 5, url: "https://withering-systems.itch.io/spiral-house", label: "An abstract game", point: [92, 78], obstacle: true },
-            hab5236: { cmd: "text", txt: "ALMANAC OF GIRLSWAMPWAR TERRITORY\nby porpentine charity heartscape, 2018\nWASD or Arrow keys to move.\nClick to play.", align: "left", lines: 5, url: "https://porpentine.itch.io/almanac", label: "A mutant game", point: [110, 82], obstacle: true },
-            h83769c: { cmd: "text", txt: "MOSS AS TEXTURE AS SPACE\nFOLDING ONTO ITSELF\nby Pol Clarissou, 2019\nWASD or Arrow keys to move.\nClick to play.", align: "left", lines: 5, url: "https://polclarissou.itch.io/moss-as-texture-as-space-folding-onto-itself", label: "A mossy game", point: [16, 82], obstacle: true },
-            hffa300: { cmd: "text", txt: "LIKELIKE\npresents:\nAn Itsy Bitsy Crisis\nCatastrophes and Rebirths in Bitsy", align: "center", lines: 4, label: "Wall text", point: [119, 95], obstacle: false }
         },
         //array of sprites to create in the room
         //sprites are rendered according to depth sort so they can appear above the avatars unlike the background
@@ -69,7 +64,7 @@ module.exports.ROOMS = {
         frameDelay: 30,
         avatarScale: 2,
         pageBg: "#ab5236",
-        area: "entrance.png",
+        area: "likelikeOutside-areas.png",
         tint: "#fdeac8",
         bubblesY: 44,
         spawn: [14, 84, 119, 92],
@@ -79,7 +74,7 @@ module.exports.ROOMS = {
         }
     },
     likelikeBackyard: {
-        bg: "likelike-backyard.png",
+        bg: "entrance.png",
         frames: 2,
         frameDelay: 30,
         avatarScale: 2,
