@@ -64,7 +64,7 @@ module.exports.ROOMS = {
     },
 
     likelikeOutside: {
-        bg: "likelikeOutside-bg.png",
+        bg: "entrance.png",
         frames: 2,
         frameDelay: 30,
         avatarScale: 2,
