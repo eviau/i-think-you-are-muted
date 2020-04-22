@@ -16,7 +16,7 @@ module.exports.ROOMS = {
     //if spreadsheet frames
     frames: 1,
     //if animated, animation speed in refreshes (frame dependent)
-    frameDelay: 30,
+    frameDelay: 0,
     //normally 2, avatars can be scaled to simulate camera distance
     avatarScale: 2,
     //a shade to tint the avatars to simulate light color, #FFFFFF normal
@@ -77,11 +77,10 @@ module.exports.ROOMS = {
       //sprite spreadsheets only 1 row ok?
     ]
   },
-
-  entrance: {
-    bg: "entrance-areas.png",
+entrance: {
+    bg: "entrance.png",
     frames: 1,
-    frameDelay: 30,
+    frameDelay: 0,
     avatarScale: 2,
     pageBg: "#000000",
     area: "entrance-areas.png",
@@ -89,7 +88,7 @@ module.exports.ROOMS = {
     spawn: [14, 84, 119, 92],
     areaColors: {
       //h will be replaced by #
-      h41c53: {
+      hb41c53: {
         cmd: "enter",
         room: "likelike",
         lines: 1,
