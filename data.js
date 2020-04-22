@@ -90,9 +90,9 @@ module.exports.ROOMS = {
     areaColors: {
       //h will be replaced by #
       h41c53: {
-        cmd: "txt",
+        cmd: "enter",
         room: "likelike",
-        lines: 2,
+        lines: 1,
         align: "left",
         label: "Enfin: la fin de la journée!",
         point: [100, 84],
