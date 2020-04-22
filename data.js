@@ -62,8 +62,8 @@ module.exports.ROOMS = {
         frames: 1,
         frameDelay: 30,
         avatarScale: 2,
-        pageBg: "#ff0141",
-        area: "entrance-areas.png",
+        pageBg: "#ffffff",
+        area: "likelikeOutside-areas.png",
         bubblesY: 44,
         spawn: [14, 84, 119, 92],
         areaColors: {
