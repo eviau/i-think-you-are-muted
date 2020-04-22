@@ -102,7 +102,7 @@ module.exports.ROOMS = {
       //hb41c53: { cmd: "enter", room: "likelike", lines: 2, txt:"Non, pas ici !", label: "Enfin: la fin de la journée!", point: [50, 10], enterPoint: [104, 98], obstacle: false },
     }
   },
-  
+
   likelikeBackyard: {
     bg: "entrance.png",
     frames: 2,
