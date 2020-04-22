@@ -13,7 +13,7 @@ module.exports.ROOMS = {
 
     likelike: {
         //the background graphics, it can be a spreadsheet
-        bg: "likelike-bg.png",
+        bg: "entrance.png",
         //if spreadsheet frames
         frames: 2,
         //if animated, animation speed in refreshes (frame dependent)
@@ -65,11 +65,11 @@ module.exports.ROOMS = {
 
     likelikeOutside: {
         bg: "entrance.png",
-        frames: 2,
+        frames: 1,
         frameDelay: 30,
         avatarScale: 2,
         pageBg: "#ab5236",
-        area: "likelikeOutside-areas.png",
+        area: "entrance.png",
         tint: "#fdeac8",
         bubblesY: 44,
         spawn: [14, 84, 119, 92],
