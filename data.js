@@ -15,7 +15,7 @@ module.exports.ROOMS = {
         //the background graphics, it can be a spreadsheet
         bg: "entrance.png",
         //if spreadsheet frames
-        frames: 2,
+        frames: 1,
         //if animated, animation speed in refreshes (frame dependent)
         frameDelay: 30,
         //normally 2, avatars can be scaled to simulate camera distance
@@ -64,7 +64,7 @@ module.exports.ROOMS = {
         frameDelay: 30,
         avatarScale: 2,
         pageBg: "#ab5236",
-        area: "likelikeOutside-areas.png",
+        area: "entrance_areas.png",
         tint: "#fdeac8",
         bubblesY: 44,
         spawn: [14, 84, 119, 92],
