@@ -6,7 +6,7 @@ module.exports.SETTINGS = {
     //minimum time between talk messages enforced by both client and server
     ANTI_SPAM: 1000,
     //shows up at first non lurking login
-    INTRO_TEXT: "Cliquez pour vous déplacer"
+    INTRO_TEXT: "Cliquez pour vous déplacer!!!!!"
 };
 
 module.exports.ROOMS = {
@@ -58,8 +58,8 @@ module.exports.ROOMS = {
     },
 
     entrance: {
-        bg: "entrance.png",
-        frames: 1,
+        bg: "entrance-areas.png",
+        frames: 3,
         frameDelay: 30,
         avatarScale: 2,
         pageBg: "#ffffff",
@@ -69,7 +69,7 @@ module.exports.ROOMS = {
         areaColors: {
             //h will be replaced by #
             hff77a8: { cmd: "enter", room: "likelike", lines: 2, txt:"Cliquez pour entrer", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: false },
-            h7778ff: { cmd: "enter", room: "likelike", lines: 2, txt:"Cliquez pour entrer", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: true },
+            h7778ff: { cmd: "enter", room: "likelike", lines: 2, txt:"Non, pas ici !", label: "Enfin: la fin de la journée!", point: [100, 84], enterPoint: [104, 98], obstacle: true },
         
         }
     },
