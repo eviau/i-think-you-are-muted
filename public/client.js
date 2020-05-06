@@ -287,9 +287,9 @@ function preload() {
     menuBg = loadImage(ASSETS_FOLDER + MENU_BG_FILE);
     arrowButton = loadImage(ASSETS_FOLDER + "arrowButton.png");
 
-    var logoSheet = loadSpriteSheet(ASSETS_FOLDER + LOGO_FILE, 66, 82, 4);
+    var logoSheet = loadSpriteSheet(ASSETS_FOLDER + LOGO_FILE, 128, 128, 1);
     logo = loadAnimation(logoSheet);
-    logo.frameDelay = 10;
+    logo.frameDelay = 0;
 
     var walkIconSheet = loadSpriteSheet(ASSETS_FOLDER + "walkIcon.png", 6, 8, 4);
     walkIcon = loadAnimation(walkIconSheet);
@@ -997,7 +997,7 @@ function update() {
 
         textFont(font, FONT_SIZE * 2);
         textAlign(CENTER, BASELINE);
-        fill(0);
+        fill(255,255,255,255,1);
         text("Body", 24 * ASSET_SCALE, 44 * ASSET_SCALE);
         text("Color", 105 * ASSET_SCALE, 44 * ASSET_SCALE);
 
