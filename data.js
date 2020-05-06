@@ -6,7 +6,7 @@ module.exports.SETTINGS = {
   //minimum time between talk messages enforced by both client and server
   ANTI_SPAM: 1000,
   //shows up at first non lurking login
-  INTRO_TEXT: "Cliquez pour vous déplacer!!!!!"
+  INTRO_TEXT: "CClick around to move!!!!!"
 };
 
 module.exports.ROOMS = {
@@ -42,7 +42,7 @@ module.exports.ROOMS = {
       hffec27: {
         cmd: "enter",
         room: "likelikeBackyard",
-        label: "allons dehors!",
+        label: "let's go outside!",
         point: [6, 88],
         enterPoint: [116, 69],
         obstacle: false
@@ -50,7 +50,7 @@ module.exports.ROOMS = {
       h00e436: {
         cmd: "enter",
         room: "entrance",
-        label: "de retour à la case départ...",
+        label: "back to starting point...",
         point: [102, 98],
         enterPoint: [103, 84],
         obstacle: false
@@ -62,10 +62,10 @@ module.exports.ROOMS = {
       //url: uptionally open a page on click
       hff004d: {
         cmd: "text",
-        txt: "Tiens donc, une boisson chaude !",
+        txt: "Hot beverage!",
         align: "left",
-        lines: 2,
-        label: "Une théière",
+        lines: 1,
+        label: "a teacup",
         point: [34, 78],
         obstacle: true
       }
@@ -93,7 +93,7 @@ entrance: {
         room: "likelike",
         lines: 1,
         align: "left",
-        label: "Enfin: la fin de la journée!",
+        label: "Finally: end of the day!",
         point: [100, 84],
         enterPoint: [104, 98],
         obstacle: false
@@ -117,13 +117,13 @@ entrance: {
       hff77a8: {
         cmd: "enter",
         room: "likelike",
-        label: "Retourner dans la première salle",
+        label: "Let's go back to the first room",
         point: [119, 69],
         enterPoint: [5, 88],
         obstacle: false
       }
     },
-    sprites: [
+    /*sprites: [
       //spreadsheets only 1 row ok?
       {
         file: "harvey.png",
@@ -140,6 +140,6 @@ entrance: {
         }
       },
       { file: "likelike-backyard-chairs.png", position: [33, 44] }
-    ]
+    ]*/
   }
 };
