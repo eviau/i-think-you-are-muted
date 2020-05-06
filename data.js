@@ -10,11 +10,12 @@ module.exports.SETTINGS = {
 };
 
 module.exports.ROOMS = {
-  
   example: {
     bg: "entrance-areas.png",
     area: "entrance-areas.png",
-     hb41c53: {
+    spawn: [84, 92, 121, 99],
+    areaColors: {
+      hb41c53: {
         cmd: "enter",
         room: "likelike",
         lines: 1,
@@ -24,9 +25,9 @@ module.exports.ROOMS = {
         enterPoint: [104, 98],
         obstacle: false
       }
-    
+    }
   },
-  
+
   likelike: {
     //the background graphics, it can be a spreadsheet
     bg: "entrance.png",
