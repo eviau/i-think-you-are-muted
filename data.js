@@ -10,6 +10,23 @@ module.exports.SETTINGS = {
 };
 
 module.exports.ROOMS = {
+  
+  example: {
+    bg: "entrance-areas.png",
+    area: "entrance-areas.png",
+     hb41c53: {
+        cmd: "enter",
+        room: "likelike",
+        lines: 1,
+        align: "left",
+        label: "Finally: end of the day!",
+        point: [100, 84],
+        enterPoint: [104, 98],
+        obstacle: false
+      }
+    
+  },
+  
   likelike: {
     //the background graphics, it can be a spreadsheet
     bg: "entrance.png",
@@ -77,7 +94,7 @@ module.exports.ROOMS = {
       //sprite spreadsheets only 1 row ok?
     ]
   },
-entrance: {
+  entrance: {
     bg: "entrance.png",
     frames: 1,
     frameDelay: 0,
@@ -122,7 +139,7 @@ entrance: {
         enterPoint: [5, 88],
         obstacle: false
       }
-    },
+    }
     /*sprites: [
       //spreadsheets only 1 row ok?
       {
