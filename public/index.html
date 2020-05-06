@@ -1,104 +1,157 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-
-<head>
+  <head>
     <title>... i think you are muted.</title>
 
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
 
     <meta name="title" content="... i think you are muted: the Lost Year" />
-    <meta name="description" content="based on the LIKELIKE gallery, the tiniest MMO / game art gallery" />
-
+    <meta
+      name="description"
+      content="based on the LIKELIKE gallery, the tiniest MMO / game art gallery"
+    />
 
     <!-- SEO / social media-->
     <meta name="author" content="finartcialist" />
     <!--meta name="copyright" content="finartcialist" /-->
     <meta name="robots" content="index, follow" />
-    <meta name="description" content="A small MMORPG. Choose an avatar and hang out with your friends 
-                                      in an ever-expanding world made of what was lost due do the COVID-19." />
+    <meta
+      name="description"
+      content="A small MMORPG. Choose an avatar and hang out with your friends 
+                                      in an ever-expanding world made of what was lost due do the COVID-19."
+    />
     <meta name="keywords" content="Game,Art,finartcialist,MMORPG" />
 
     <!-- meta property="og:image" content="https://molleindustria.org/images/likelikeOnline.png" /-->
-    <meta property="og:title" content="...i think you are muted: the Lost Year" />
-    <meta property="og:description" content="a collaborative artgame perspective on the crisis." />
+    <meta
+      property="og:title"
+      content="...i think you are muted: the Lost Year"
+    />
+    <meta
+      property="og:description"
+      content="a collaborative artgame perspective on the crisis."
+    />
 
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:site" content="@finartcialist" />
-    <meta name="twitter:title" content="... i think you are muted: the Lost Year" />
-    <meta name="twitter:description" content="A small MMORPG. Choose an avatar and hang out with your friends 
-                                      in an ever-expanding world made of what was lost due do the COVID-19." />
+    <meta
+      name="twitter:title"
+      content="... i think you are muted: the Lost Year"
+    />
+    <meta
+      name="twitter:description"
+      content="A small MMORPG. Choose an avatar and hang out with your friends 
+                                      in an ever-expanding world made of what was lost due do the COVID-19."
+    />
     <!-- <meta name="twitter:image" content="https://molleindustria.org/images/likelikeOnline.png" /-->
 
     <!-- This is a standard p5.js index, NOTE the p5.dom.min.js -->
-    <script src='https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.10.2/p5.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/addons/p5.dom.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.10.2/addons/p5.sound.min.js"></script>
     <script src="p5.play.js"></script>
     <script defer src="client.js"></script>
-    <link rel="stylesheet" type="text/css" href="style.css">
+    <link rel="stylesheet" type="text/css" href="style.css" />
+  </head>
 
-
-</head>
-
-<body>
-
+  <body>
     <div id="canvas-container" oncontextmenu="return false;">
-        <!-- the lobby element is displayed before the canvas is loaded -->
-        <div id="lobby-container" style="display: none;">
-            <div class="content-center">
-
-                <div class="lobby-message"> What's your name?</div>
-                <form action="" onsubmit="return nameOk()">
-                    <input id="lobby-field" class="lobby-field" placeholder="username" maxlength="16" autocomplete="off"
-                        autocorrect="off" autocapitalize="off" spellcheck="false" />
-                </form>
-                <div id="lobby-error" class="lobby-error-message"></div>
-
-
-            </div>
+      <!-- the lobby element is displayed before the canvas is loaded -->
+      <div id="lobby-container" style="display: none;">
+        <div class="content-center">
+          <div class="lobby-message">What's your name?</div>
+          <form action="" onsubmit="return nameOk()">
+            <input
+              id="lobby-field"
+              class="lobby-field"
+              placeholder="username"
+              maxlength="16"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+            />
+          </form>
+          <div id="lobby-error" class="lobby-error-message"></div>
         </div>
-
-
-
+      </div>
     </div>
     <div id="interface">
-        <!-- talk form is below canvas getTalkInput is what happens when return is pressed-->
-        <form id="join-form" action="" onsubmit="return joinGame()" style="display: none;">
-            <!-- call the function below on button press-->
-            <button class="join-button" type="button" onclick="joinGame();">JOIN</button>
-        </form>
+      <!-- talk form is below canvas getTalkInput is what happens when return is pressed-->
+      <form
+        id="join-form"
+        action=""
+        onsubmit="return joinGame()"
+        style="display: none;"
+      >
+        <!-- call the function below on button press-->
+        <button class="join-button" type="button" onclick="joinGame();">
+          JOIN
+        </button>
+      </form>
 
-        <form id="user-form" action="" onsubmit="return nameOk()" style="display: none;">
-            <!-- call the function below on button press-->
-            <button class="user-button" type="button" onclick="nameOk();">CONTINUE</button>
-        </form>
+      <form
+        id="user-form"
+        action=""
+        onsubmit="return nameOk()"
+        style="display: none;"
+      >
+        <!-- call the function below on button press-->
+        <button class="user-button" type="button" onclick="nameOk();">
+          CONTINUE
+        </button>
+      </form>
 
-        <form id="avatar-form" action="" onsubmit="return bodyOk()" style="display: none;">
-            <!-- call the function below on button press-->
-            <button class="avatar-button" type="button" onclick="bodyOk();">CONTINUE</button>
-        </form>
+      <form
+        id="avatar-form"
+        action=""
+        onsubmit="return bodyOk()"
+        style="display: none;"
+      >
+        <!-- call the function below on button press-->
+        <button class="avatar-button" type="button" onclick="bodyOk();">
+          CONTINUE
+        </button>
+      </form>
 
-        <form id="talk-form" action="" onsubmit="return getTalkInput()" style="display: none;">
-            <input class="talk-field" placeholder="TYPE HERE" maxlength="40" id="chatField" autocomplete="off" />
-            <!-- call the function below on button press-->
-            <button class="talk-button" type="button" onclick="getTalkInput();">TALK</button>
-        </form>
-
-
+      <form
+        id="talk-form"
+        action=""
+        onsubmit="return getTalkInput()"
+        style="display: none;"
+      >
+        <input
+          class="talk-field"
+          placeholder="TYPE HERE"
+          maxlength="40"
+          id="chatField"
+          autocomplete="off"
+        />
+        <!-- call the function below on button press-->
+        <button class="talk-button" type="button" onclick="getTalkInput();">
+          TALK
+        </button>
+      </form>
     </div>
-  <!--div id="me" class="info">
+    <!--div id="me" class="info">
   
     
   <a href="https://eviau.github.io">more info about the remix author here</a>   
   </div-->
     <div id="info" class="info">
-   
-  <a href="http://likelike.org/" target="_blank">thanks to LIKELIKE.ORG for sharing their original game & content</a></div>
-  <div id="icon" class="info">
-    <p>
-      
-    <a href="https://freeicons.io/filed-weather-icons/compass-navigator-travel-direction-icon-40096" target="_blank">icon by BECRIS on freeicons.io</a></p></div>
-</body>
-
+      <a href="http://likelike.org/" target="_blank"
+        >thanks to LIKELIKE.ORG for sharing their original game & content</a
+      >
+    </div>
+    <div id="icon" class="info">
+      <p>
+        <a
+          href="https://freeicons.io/filed-weather-icons/compass-navigator-travel-direction-icon-40096"
+          target="_blank"
+          >icon by BECRIS on freeicons.io</a
+        >
+      </p>
+    </div>
+  </body>
 </html>

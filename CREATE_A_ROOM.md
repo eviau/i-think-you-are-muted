@@ -18,7 +18,7 @@ We know which action to do based on which colour was used to define an area in t
 
 Let's give an example :)
 
-You can go to https://post-work-hangout.glitch.me/?room=example for an example of a room where the background image _is the same_ as the area image.
+You can go to [https://post-work-hangout.glitch.me/?room=example](https://post-work-hangout.glitch.me/?room=example) for an example of a room where the background image _is the same_ as the area image.
 
 You will see a blue blob in the upleft corner, that you won't be able to walk on.
 You will see a pink rectangle in the bottom right corner, that you will be able to walk in.
@@ -41,6 +41,9 @@ Here is the code behind this room:
               point: [100, 84],
               enterPoint: [104, 98],
               obstacle: false
+              }
+            }
+              
 
 This room is refered to as the `example`room.
 
