@@ -101,6 +101,7 @@ canvas {
 }
 
 .lobby-error-message {
+  color: #ffffff;
 	font-size: 32px;
 	color: #ff004d;
 }
